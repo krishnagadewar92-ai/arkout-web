@@ -46,7 +46,7 @@ export default function Home() {
       setTimeout(() => { setProgress(25); setLogText("Transmitting document to Python backend..."); }, 400);
 
 
-      const response = await fetch("http://127.0.0.1:5000/upload", {
+      const response = await fetch("https://api.arkout.in/upload", {
         method: "POST",
         body: formData,
       });

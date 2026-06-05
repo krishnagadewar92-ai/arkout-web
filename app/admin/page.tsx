@@ -8,7 +8,7 @@ export default function AdminDashboard() {
   const [stats, setStats] = useState({ ink_level: 0, pages_remaining: 0, total_revenue: 0, active_jobs: 0, system_health: "Loading..." });
 
   const fetchStats = () => {
-    fetch("http://127.0.0.1:5000/api/stats")
+    fetch("https://api.arkout.in/api/stats")
       .then(res => res.json())
       .then(data => setStats(data));
   };
