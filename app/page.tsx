@@ -19,7 +19,7 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
           <div className="relative w-32 h-10">
             {/* FIX: Added 'sizes' to kill the terminal warning */}
-            <Image src="/logo.png" alt="Arkout" fill sizes="(max-width: 768px) 100vw, 33vw" className="object-contain" priority />
+            <Image src="/arkout-logo.png" alt="Arkout" fill sizes="(max-width: 768px) 100vw, 33vw" className="object-contain" priority />
           </div>
           <div className="hidden md:flex items-center space-x-8 text-sm font-medium text-zinc-400">
             <span className="hover:text-white cursor-pointer transition-colors">How it Works</span>
