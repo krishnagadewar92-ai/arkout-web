@@ -10,7 +10,7 @@ import Image from "next/image";
 
 type AppStep = 'upload' | 'processing' | 'checkout' | 'success';
 
-// --- NEW: Dynamic Script Loader (Bypasses Next.js strict errors) ---
+// --- Dynamic Script Loader (Bypasses Next.js strict errors) ---
 const loadRazorpay = () => {
   return new Promise((resolve) => {
     const script = document.createElement("script");
@@ -94,7 +94,9 @@ export default function Home() {
 
       // 3. Configure the Payment Window
       const options = {
-        key: "rzp_test_T0PhhigqT6itig", // Your Test Key ID
+        // --- THIS IS THE SECURE CHANGE ---
+        // It now pulls safely from Vercel's Environment Variables
+        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID, 
         amount: order.amount,
         currency: order.currency,
         name: "Arkout Print Hub",
