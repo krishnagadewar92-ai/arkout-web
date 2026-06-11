@@ -7,9 +7,19 @@ import {
   Cpu, FileBox, Printer, Check, ShieldCheck
 } from "lucide-react";
 import Image from "next/image";
-import Script from "next/script";
 
 type AppStep = 'upload' | 'processing' | 'checkout' | 'success';
+
+// --- NEW: Dynamic Script Loader (Bypasses Next.js strict errors) ---
+const loadRazorpay = () => {
+  return new Promise((resolve) => {
+    const script = document.createElement("script");
+    script.src = "https://checkout.razorpay.com/v1/checkout.js";
+    script.onload = () => resolve(true);
+    script.onerror = () => resolve(false);
+    document.body.appendChild(script);
+  });
+};
 
 export default function Home() {
   const [file, setFile] = useState<File | null>(null);
@@ -25,7 +35,6 @@ export default function Home() {
     }
   };
 
-  // Real-time API Connection
   const handleOptimize = async () => {
     if (!file) return;
     
@@ -61,11 +70,19 @@ export default function Home() {
     }
   };
 
-  // --- NEW: RAZORPAY INTEGRATION ---
   const handlePayment = async () => {
     setIsPaying(true);
+
+    // 1. Inject Razorpay Script dynamically
+    const isLoaded = await loadRazorpay();
+    if (!isLoaded) {
+      alert("Failed to load Razorpay SDK. Check your connection.");
+      setIsPaying(false);
+      return;
+    }
+
     try {
-      // 1. Ask Pi for a new Order ID
+      // 2. Ask Pi for a new Order ID
       const orderRes = await fetch("https://api.arkout.in/api/create-order", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -75,7 +92,7 @@ export default function Home() {
 
       if (!order.id) throw new Error("Failed to create Razorpay order");
 
-      // 2. Configure the Payment Window
+      // 3. Configure the Payment Window
       const options = {
         key: "rzp_test_T0PhhigqT6itig", // Your Test Key ID
         amount: order.amount,
@@ -84,9 +101,8 @@ export default function Home() {
         description: `Terminal 01 - ${printData.pages} Pages`,
         order_id: order.id,
         handler: function (response: any) {
-          // Success Callback
           console.log("Payment ID:", response.razorpay_payment_id);
-          setStep('success'); // Trigger your beautiful success animation!
+          setStep('success'); 
           setIsPaying(false);
         },
         prefill: {
@@ -94,7 +110,7 @@ export default function Home() {
           contact: "9999999999",
         },
         theme: {
-          color: "#050505", // Matches your dark UI perfectly
+          color: "#050505", 
         },
       };
 
@@ -121,9 +137,6 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-black flex flex-col items-center justify-center p-6 relative overflow-hidden font-sans selection:bg-cyan-500/30">
       
-      {/* Razorpay Script Injection */}
-      <Script src="https://checkout.razorpay.com/v1/checkout.js" strategy="lazyOnload" />
-
       {/* Linear-Style Architectural Grid */}
       <div className="absolute inset-0 bg-[linear-gradient(to_right,#ffffff0a_1px,transparent_1px),linear-gradient(to_bottom,#ffffff0a_1px,transparent_1px)] bg-[size:32px_32px]"></div>
       
