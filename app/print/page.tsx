@@ -155,7 +155,7 @@ export default function Home() {
           className="text-center mb-10 flex flex-col items-center"
         >
           <div className="relative w-48 h-16 mb-6">
-             <Image src="/logo.png" alt="Arkout" fill unoptimized className="object-contain drop-shadow-[0_0_15px_rgba(0,229,255,0.3)]" priority />
+             <Image src="/arkout-logo.png" alt="Arkout" fill unoptimized className="object-contain drop-shadow-[0_0_15px_rgba(0,229,255,0.3)]" priority />
           </div>
         </motion.div>
 
