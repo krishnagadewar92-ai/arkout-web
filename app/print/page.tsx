@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  UploadCloud, FileText, ChevronRight, Sparkles, CheckCircle2,
+  UploadCloud, FileText, ChevronRight, Sparkles,
   Cpu, FileBox, Printer, Check, ShieldCheck
 } from "lucide-react";
 import Image from "next/image";
@@ -94,18 +94,35 @@ export default function Home() {
 
       // 3. Configure the Payment Window
       const options = {
-        // --- THIS IS THE SECURE CHANGE ---
-        // It now pulls safely from Vercel's Environment Variables
+        // Securely pulls from Vercel's Environment Variables
         key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID, 
         amount: order.amount,
         currency: order.currency,
         name: "Arkout Print Hub",
         description: `Terminal 01 - ${printData.pages} Pages`,
         order_id: order.id,
-        handler: function (response: any) {
+        handler: async function (response: any) {
           console.log("Payment ID:", response.razorpay_payment_id);
           setStep('success'); 
           setIsPaying(false);
+
+          // --- HARWARE TRIGGER: Tell the Pi to Print! ---
+          try {
+            const printRes = await fetch("https://api.arkout.in/api/trigger-print", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ filename: file?.name }), // Send the exact filename
+            });
+            
+            const printData = await printRes.json();
+            if (printData.status === "success") {
+              console.log("Hardware: Printer spooling up...");
+            } else {
+              console.error("Hardware Error:", printData.error);
+            }
+          } catch (err) {
+            console.error("Failed to connect to Pi print server", err);
+          }
         },
         prefill: {
           name: "Arkout User",
@@ -147,15 +164,22 @@ export default function Home() {
 
       <div className="z-10 w-full max-w-2xl flex flex-col items-center">
         
-        {/* Prominent Centered Branding */}
+        {/* Prominent Centered Branding - WITH CACHE BREAKER AND CSS INVERSION */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
           className="text-center mb-10 flex flex-col items-center"
         >
-          <div className="relative w-48 h-16 mb-6">
-             <Image src="/arkout-logo.png" alt="Arkout" fill unoptimized className="object-contain drop-shadow-[0_0_15px_rgba(0,229,255,0.3)]" priority />
+          <div className="relative w-56 h-24 mb-6 filter invert brightness-125 contrast-125 hue-rotate-180 drop-shadow-[0_0_15px_rgba(0,229,255,0.3)]">
+             <Image 
+               src="/logo.png?v=2" 
+               alt="Arkout" 
+               fill 
+               unoptimized
+               className="object-contain" 
+               priority 
+             />
           </div>
         </motion.div>
 
