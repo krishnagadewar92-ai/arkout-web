@@ -4,7 +4,7 @@ import { useState, useMemo, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   UploadCloud, FileText, ChevronRight, Cpu, Check, 
-  Palette, Layers, Maximize, Lock
+  Palette, Layers, Maximize, Lock, XCircle
 } from "lucide-react";
 import Image from "next/image";
 
@@ -30,13 +30,12 @@ export default function Home() {
   const [progress, setProgress] = useState(0);
   const [logText, setLogText] = useState("Initializing neural engine...");
   
-  const [pages, setPages] = useState(0);
+  const [pages, setPages] = useState(1);
   const [colorMode, setColorMode] = useState<'bw' | 'color'>('bw');
   const [sides, setSides] = useState<'single' | 'double'>('single');
   const [margin, setMargin] = useState<'standard' | 'none'>('standard');
   const [isPaying, setIsPaying] = useState(false);
 
-  // Auto-grab PIN from URL if they scanned the Kiosk QR
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const urlPin = urlParams.get('pin');
@@ -50,13 +49,14 @@ export default function Home() {
     if (colorMode === 'bw') setMargin('standard');
   }, [colorMode]);
 
+  // Forces minimum of 1 page to prevent Razorpay 0.00 error
   const currentPrice = useMemo(() => {
+    const safePages = pages > 0 ? pages : 1; 
     let pricePerPage = 1.5;
     if (colorMode === 'color') pricePerPage = margin === 'none' ? 10 : 7;
-    return pages * pricePerPage;
+    return safePages * pricePerPage;
   }, [pages, colorMode, margin]);
 
-  // PROXIMITY CHECK
   const verifyTerminalPin = async (pinToVerify: string) => {
     setIsVerifying(true);
     setPinError("");
@@ -96,7 +96,7 @@ export default function Home() {
 
       if (response.ok) {
         const data = await response.json();
-        setPages(data.pages);
+        setPages(data.pages > 0 ? data.pages : 1);
         setProgress(60);
         setLogText(`Transfer complete. Found ${data.pages} pages...`);
         setTimeout(() => { setProgress(85); setLogText("Loading print configuration matrix..."); }, 1500);
@@ -152,9 +152,15 @@ export default function Home() {
     }
   };
 
-  const resetApp = () => {
+  // INSTANT ABORT FUNCTION
+  const resetApp = async () => {
+    // Tell the Python hardware to instantly drop the loading screen
+    try {
+      await fetch("https://api.arkout.in/api/abort", { method: "POST" });
+    } catch (e) { console.error("Abort signal failed"); }
+    
     setFile(null); setStep('verify'); setProgress(0); setPin("");
-    setColorMode('bw'); setSides('single'); setMargin('standard');
+    setColorMode('bw'); setSides('single'); setMargin('standard'); setPages(1);
   };
 
   return (
@@ -215,10 +221,11 @@ export default function Home() {
                   <button onClick={handleOptimize} disabled={!file} className={`w-full mt-6 py-4 rounded-xl font-bold flex justify-center space-x-2 transition-all ${file ? "bg-white text-black hover:bg-zinc-200" : "bg-zinc-900 text-zinc-500 cursor-not-allowed"}`}>
                     {file ? (<><span>Analyze & Configure</span><ChevronRight size={18} /></>) : (<span>Awaiting Document</span>)}
                   </button>
+                  <button onClick={resetApp} className="mt-4 text-zinc-500 text-sm font-semibold hover:text-white transition-colors">Abort & Return</button>
                 </motion.div>
               )}
 
-              {/* STATES 2-4 REMAIN EXACTLY THE SAME AS BEFORE */}
+              {/* STATE 2: PROCESSING */}
               {step === 'processing' && (
                 <motion.div key="processing" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col items-center justify-center py-8">
                   <div className="flex items-center space-x-6 mb-10 text-purple-400"><Cpu size={48} className="animate-pulse" /></div>
@@ -232,9 +239,11 @@ export default function Home() {
                   {progress === 100 && (
                     <button onClick={() => setStep('checkout')} className="mt-8 bg-white text-black px-8 py-3 rounded-xl font-bold hover:scale-105 transition-transform flex items-center gap-2">Configure Print <ChevronRight size={16} /></button>
                   )}
+                  <button onClick={resetApp} className="mt-8 flex items-center gap-1 text-zinc-500 text-sm font-semibold hover:text-red-400 transition-colors"><XCircle size={16}/> Cancel Print</button>
                 </motion.div>
               )}
 
+              {/* STATE 3: CHECKOUT */}
               {step === 'checkout' && (
                 <motion.div key="checkout" initial={{ opacity: 0, x: 50 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }} className="flex flex-col md:flex-row w-full h-full gap-8">
                   <div className="flex-1 flex flex-col space-y-5">
@@ -261,7 +270,7 @@ export default function Home() {
                         <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="space-y-2 overflow-hidden">
                           <label className="text-xs text-purple-400 font-bold uppercase tracking-wider flex items-center gap-2"><Maximize size={14}/> Margin Type</label>
                           <div className="flex bg-purple-900/10 p-1 rounded-lg border border-purple-500/20">
-                            <button onClick={() => setMargin('standard')} className={`flex-1 py-2 rounded-md text-sm font-semibold transition-colors ${margin === 'standard' ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30' : 'text-zinc-500 hover:text-zinc-300'}`}>Standard Margin</button>
+                            <button onClick={() => setMargin('standard')} className={`flex-1 py-2 rounded-md text-sm font-semibold transition-colors ${margin === 'standard' ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30' : 'text-zinc-500 hover:text-zinc-300'}`}>Standard</button>
                             <button onClick={() => setMargin('none')} className={`flex-1 py-2 rounded-md text-sm font-semibold transition-colors ${margin === 'none' ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30' : 'text-zinc-500 hover:text-zinc-300'}`}>No Margin (₹10/pg)</button>
                           </div>
                         </motion.div>
@@ -277,10 +286,12 @@ export default function Home() {
                     <button onClick={handlePayment} disabled={isPaying} className={`w-full py-4 rounded-xl font-bold flex justify-center space-x-2 transition-all ${isPaying ? "bg-zinc-800 text-zinc-500" : "bg-white text-black hover:bg-zinc-200"}`}>
                       {isPaying ? <span>Processing...</span> : <><span>Pay Securely</span> <ChevronRight size={18} /></>}
                     </button>
+                    <button onClick={resetApp} className="mt-4 flex items-center gap-1 text-zinc-500 text-xs font-semibold hover:text-red-400 transition-colors"><XCircle size={14}/> Cancel & Restart</button>
                   </div>
                 </motion.div>
               )}
 
+              {/* STATE 4: SUCCESS */}
               {step === 'success' && (
                 <motion.div key="success" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="flex flex-col items-center text-center py-10">
                   <div className="w-24 h-24 bg-emerald-500/10 border border-emerald-500/30 rounded-full flex justify-center items-center mb-6 text-emerald-400"><Check size={48} /></div>
