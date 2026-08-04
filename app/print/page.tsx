@@ -4,7 +4,7 @@ import { useState, useMemo, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   UploadCloud, FileText, ChevronRight, Cpu, Check, 
-  Palette, Layers, Maximize, Lock, XCircle
+  Palette, Layers, Maximize, Lock, XCircle, Copy, Plus, Minus
 } from "lucide-react";
 import Image from "next/image";
 
@@ -30,7 +30,8 @@ export default function Home() {
   const [progress, setProgress] = useState(0);
   const [logText, setLogText] = useState("Initializing neural engine...");
   
-  const [pages, setPages] = useState(1);
+  const [basePages, setBasePages] = useState(1);
+  const [copies, setCopies] = useState(1);
   const [colorMode, setColorMode] = useState<'bw' | 'color'>('bw');
   const [sides, setSides] = useState<'single' | 'double'>('single');
   const [margin, setMargin] = useState<'standard' | 'none'>('standard');
@@ -49,13 +50,30 @@ export default function Home() {
     if (colorMode === 'bw') setMargin('standard');
   }, [colorMode]);
 
-  // Forces minimum of 1 page to prevent Razorpay 0.00 error
+  // Total pages based on copies
+  const totalPages = basePages * copies;
+  
+  // Calculate max possible copies without exceeding 30 total pages
+  const maxCopies = Math.floor(30 / basePages);
+
+  const handleIncrementCopies = () => {
+    if (copies < maxCopies) {
+      setCopies(prev => prev + 1);
+    }
+  };
+
+  const handleDecrementCopies = () => {
+    if (copies > 1) {
+      setCopies(prev => prev - 1);
+    }
+  };
+
   const currentPrice = useMemo(() => {
-    const safePages = pages > 0 ? pages : 1; 
+    const safePages = totalPages > 0 ? totalPages : 1; 
     let pricePerPage = 1.5;
     if (colorMode === 'color') pricePerPage = margin === 'none' ? 10 : 7;
     return safePages * pricePerPage;
-  }, [pages, colorMode, margin]);
+  }, [totalPages, colorMode, margin]);
 
   const verifyTerminalPin = async (pinToVerify: string) => {
     setIsVerifying(true);
@@ -96,11 +114,23 @@ export default function Home() {
 
       if (response.ok) {
         const data = await response.json();
-        setPages(data.pages > 0 ? data.pages : 1);
+        const detectedPages = data.pages > 0 ? data.pages : 1;
+        setBasePages(detectedPages);
+        
+        // Reset copies to 1 
+        setCopies(1);
+        
         setProgress(60);
-        setLogText(`Transfer complete. Found ${data.pages} pages...`);
+        setLogText(`Transfer complete. Found ${detectedPages} pages...`);
         setTimeout(() => { setProgress(85); setLogText("Loading print configuration matrix..."); }, 1500);
-        setTimeout(() => { setProgress(100); setLogText("Print package optimized and ready."); }, 3000);
+        setTimeout(() => { 
+            setProgress(100); 
+            if(detectedPages > 30) {
+               setLogText(`WARNING: Document is ${detectedPages} pages (Max is 30). You can only print the first 30 pages.`);
+            } else {
+               setLogText("Print package optimized and ready."); 
+            }
+        }, 3000);
       } else {
         setLogText("> ERROR: Server rejected the transmission.");
       }
@@ -128,14 +158,15 @@ export default function Home() {
       const options = {
         key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID, 
         amount: order.amount, currency: order.currency,
-        name: "Arkout Print Hub", description: `Terminal 01 - ${pages} Pages`,
+        name: "Arkout Print Hub", description: `Terminal 01 - ${totalPages} Pages`,
         order_id: order.id,
         handler: async function (response: any) {
           setStep('success'); setIsPaying(false);
           try {
             await fetch("https://api.arkout.in/api/trigger-print", {
               method: "POST", headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ filename: file?.name, config: { colorMode, sides, margin } }), 
+              // Passing copies to the backend
+              body: JSON.stringify({ filename: file?.name, config: { colorMode, sides, margin, copies } }), 
             });
           } catch (err) { console.error("Hardware trigger failed", err); }
         },
@@ -152,15 +183,14 @@ export default function Home() {
     }
   };
 
-  // INSTANT ABORT FUNCTION
   const resetApp = async () => {
-    // Tell the Python hardware to instantly drop the loading screen
     try {
       await fetch("https://api.arkout.in/api/abort", { method: "POST" });
     } catch (e) { console.error("Abort signal failed"); }
     
     setFile(null); setStep('verify'); setProgress(0); setPin("");
-    setColorMode('bw'); setSides('single'); setMargin('standard'); setPages(1);
+    setColorMode('bw'); setSides('single'); setMargin('standard'); 
+    setBasePages(1); setCopies(1);
   };
 
   return (
@@ -236,8 +266,14 @@ export default function Home() {
                     </div>
                   </div>
                   <p className="text-xs font-mono text-zinc-500 mt-2">{">"} {logText}</p>
-                  {progress === 100 && (
+                  {progress === 100 && basePages <= 30 && (
                     <button onClick={() => setStep('checkout')} className="mt-8 bg-white text-black px-8 py-3 rounded-xl font-bold hover:scale-105 transition-transform flex items-center gap-2">Configure Print <ChevronRight size={16} /></button>
+                  )}
+                  {progress === 100 && basePages > 30 && (
+                     <div className="mt-6 text-center">
+                        <p className="text-red-400 font-bold mb-4">Document exceeds 30 pages limit ({basePages} pages).</p>
+                        <button onClick={resetApp} className="bg-zinc-800 text-white px-8 py-3 rounded-xl font-bold hover:bg-zinc-700 transition-colors">Upload Smaller File</button>
+                     </div>
                   )}
                   <button onClick={resetApp} className="mt-8 flex items-center gap-1 text-zinc-500 text-sm font-semibold hover:text-red-400 transition-colors"><XCircle size={16}/> Cancel Print</button>
                 </motion.div>
@@ -276,14 +312,29 @@ export default function Home() {
                         </motion.div>
                       )}
                     </AnimatePresence>
+                    
+                    {/* NEW COPIES SELECTOR */}
+                    <div className="space-y-2">
+                      <label className="text-xs text-zinc-400 font-bold uppercase tracking-wider flex items-center gap-2 justify-between">
+                        <span className="flex items-center gap-2"><Copy size={14}/> Number of Copies</span>
+                        <span className="text-[10px] text-cyan-500/70">Max {Math.floor(30 / basePages)} allowed</span>
+                      </label>
+                      <div className="flex bg-zinc-900/50 p-1 rounded-lg border border-white/5 items-center justify-between">
+                        <button onClick={handleDecrementCopies} disabled={copies <= 1} className="p-3 text-zinc-400 hover:text-white disabled:opacity-30 transition-colors"><Minus size={18}/></button>
+                        <span className="font-bold text-xl">{copies}</span>
+                        <button onClick={handleIncrementCopies} disabled={copies >= maxCopies} className="p-3 text-zinc-400 hover:text-white disabled:opacity-30 transition-colors"><Plus size={18}/></button>
+                      </div>
+                    </div>
+
                   </div>
 
                   <div className="flex-1 flex flex-col items-center justify-center p-6 bg-zinc-900/40 rounded-3xl border border-white/5 relative overflow-hidden">
                     <div className="w-full mb-6 pb-6 border-b border-white/5 space-y-3">
-                       <div className="flex justify-between text-sm"><span className="text-zinc-400">Pages Detected</span><span className="text-white font-bold">{pages}</span></div>
+                       <div className="flex justify-between text-sm"><span className="text-zinc-400">Pages per copy</span><span className="text-white font-medium">{basePages}</span></div>
+                       <div className="flex justify-between text-sm"><span className="text-zinc-400">Total Print Pages</span><span className="text-cyan-400 font-bold">{totalPages} / 30</span></div>
                        <div className="flex justify-between items-end mt-4"><span className="text-zinc-400 font-medium">Total Amount</span><span className="text-4xl font-bold text-cyan-400">₹{currentPrice.toFixed(2)}</span></div>
                     </div>
-                    <button onClick={handlePayment} disabled={isPaying} className={`w-full py-4 rounded-xl font-bold flex justify-center space-x-2 transition-all ${isPaying ? "bg-zinc-800 text-zinc-500" : "bg-white text-black hover:bg-zinc-200"}`}>
+                    <button onClick={handlePayment} disabled={isPaying || totalPages > 30} className={`w-full py-4 rounded-xl font-bold flex justify-center space-x-2 transition-all ${isPaying || totalPages > 30 ? "bg-zinc-800 text-zinc-500" : "bg-white text-black hover:bg-zinc-200"}`}>
                       {isPaying ? <span>Processing...</span> : <><span>Pay Securely</span> <ChevronRight size={18} /></>}
                     </button>
                     <button onClick={resetApp} className="mt-4 flex items-center gap-1 text-zinc-500 text-xs font-semibold hover:text-red-400 transition-colors"><XCircle size={14}/> Cancel & Restart</button>
