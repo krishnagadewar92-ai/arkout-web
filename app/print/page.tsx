@@ -4,7 +4,7 @@ import { useState, useMemo, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   UploadCloud, FileText, ChevronRight, Cpu, Check, 
-  Palette, Layers, Maximize, Lock, XCircle, Copy, Plus, Minus
+  Palette, Layers, Maximize, Lock, XCircle, Copy, Plus, Minus, Eye
 } from "lucide-react";
 import Image from "next/image";
 
@@ -26,7 +26,11 @@ export default function Home() {
   const [pinError, setPinError] = useState("");
   const [isVerifying, setIsVerifying] = useState(false);
 
-  const [file, setFile] = useState<File | null>(null);
+  // CART UPGRADE: Arrays for multiple files
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [backendFiles, setBackendFiles] = useState<{filename: string, pages: number}[]>([]);
+  const [previewFile, setPreviewFile] = useState<string | null>(null);
+
   const [progress, setProgress] = useState(0);
   const [logText, setLogText] = useState("Initializing neural engine...");
   
@@ -54,7 +58,7 @@ export default function Home() {
   const totalPages = basePages * copies;
   
   // Calculate max possible copies without exceeding 30 total pages
-  const maxCopies = Math.floor(30 / basePages);
+  const maxCopies = Math.floor(30 / (basePages > 0 ? basePages : 1));
 
   const handleIncrementCopies = () => {
     if (copies < maxCopies) {
@@ -96,37 +100,48 @@ export default function Home() {
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) setFile(e.target.files[0]);
+    if (e.target.files && e.target.files.length > 0) {
+      // Append new files to any existing files
+      setSelectedFiles(prev => [...prev, ...Array.from(e.target.files!)]);
+    }
+  };
+
+  const removeSelectedFile = (index: number) => {
+    setSelectedFiles(prev => prev.filter((_, i) => i !== index));
   };
 
   const handleOptimize = async () => {
-    if (!file) return;
+    if (selectedFiles.length === 0) return;
     setStep('processing');
     setProgress(0);
     setLogText("Connecting to Arkout local node...");
 
     const formData = new FormData();
-    formData.append("file", file);
+    selectedFiles.forEach(file => {
+      formData.append("files", file);
+    });
 
     try {
-      setTimeout(() => { setProgress(25); setLogText("Transmitting document to Python backend..."); }, 400);
+      setTimeout(() => { setProgress(25); setLogText("Transmitting documents to Python backend..."); }, 400);
       const response = await fetch("https://api.arkout.in/upload", { method: "POST", body: formData });
 
       if (response.ok) {
         const data = await response.json();
-        const detectedPages = data.pages > 0 ? data.pages : 1;
-        setBasePages(detectedPages);
         
-        // Reset copies to 1 
+        // Sum all pages from all files in the cart
+        const totalDetectedPages = data.files.reduce((sum: number, f: any) => sum + (f.pages > 0 ? f.pages : 1), 0);
+        
+        setBackendFiles(data.files);
+        setBasePages(totalDetectedPages);
         setCopies(1);
         
         setProgress(60);
-        setLogText(`Transfer complete. Found ${detectedPages} pages...`);
+        setLogText(`Transfer complete. Found ${totalDetectedPages} total pages...`);
         setTimeout(() => { setProgress(85); setLogText("Loading print configuration matrix..."); }, 1500);
         setTimeout(() => { 
             setProgress(100); 
-            if(detectedPages > 30) {
-               setLogText(`WARNING: Document is ${detectedPages} pages (Max is 30). You can only print the first 30 pages.`);
+            if(totalDetectedPages > 30) {
+               setLogText(`WARNING: Cart contains ${totalDetectedPages} pages (Max is 30). Please reduce files.`);
             } else {
                setLogText("Print package optimized and ready."); 
             }
@@ -163,10 +178,16 @@ export default function Home() {
         handler: async function (response: any) {
           setStep('success'); setIsPaying(false);
           try {
+            // MAP CART ITEMS TO BACKEND STRUCTURE
+            const items = backendFiles.map(f => ({
+              filename: f.filename,
+              pages: f.pages,
+              config: { colorMode, sides, margin, copies }
+            }));
+
             await fetch("https://api.arkout.in/api/trigger-print", {
               method: "POST", headers: { "Content-Type": "application/json" },
-              // Passing copies to the backend
-              body: JSON.stringify({ filename: file?.name, config: { colorMode, sides, margin, copies } }), 
+              body: JSON.stringify({ items }), 
             });
           } catch (err) { console.error("Hardware trigger failed", err); }
         },
@@ -188,13 +209,39 @@ export default function Home() {
       await fetch("https://api.arkout.in/api/abort", { method: "POST" });
     } catch (e) { console.error("Abort signal failed"); }
     
-    setFile(null); setStep('verify'); setProgress(0); setPin("");
+    setSelectedFiles([]); setBackendFiles([]); setPreviewFile(null); 
+    setStep('verify'); setProgress(0); setPin("");
     setColorMode('bw'); setSides('single'); setMargin('standard'); 
     setBasePages(1); setCopies(1);
   };
 
   return (
     <main className="min-h-screen bg-black flex flex-col items-center justify-center p-6 relative overflow-hidden font-sans selection:bg-cyan-500/30">
+      
+      {/* INSTANT PREVIEW MODAL - Dark Glass UI */}
+      <AnimatePresence>
+        {previewFile && (
+          <motion.div 
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} 
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-md p-6"
+          >
+            <motion.div 
+              initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }}
+              className="w-full max-w-5xl h-[85vh] bg-[#050505]/95 backdrop-blur-3xl border border-white/10 rounded-3xl overflow-hidden shadow-2xl flex flex-col"
+            >
+              <div className="flex justify-between items-center p-5 border-b border-white/10 bg-white/5">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-cyan-500/10 text-cyan-400 rounded-lg border border-cyan-500/20"><FileText size={18}/></div>
+                  <h3 className="text-white font-bold tracking-wide">{previewFile}</h3>
+                </div>
+                <button onClick={() => setPreviewFile(null)} className="text-zinc-500 hover:text-white transition-colors p-1"><XCircle size={28}/></button>
+              </div>
+              <iframe src={`https://api.arkout.in/api/preview/${previewFile}`} className="w-full flex-1 bg-white/[0.02]" />
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <div className="absolute inset-0 bg-[linear-gradient(to_right,#ffffff0a_1px,transparent_1px),linear-gradient(to_bottom,#ffffff0a_1px,transparent_1px)] bg-[size:32px_32px]"></div>
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[600px] bg-gradient-to-b from-cyan-500/15 via-purple-500/5 to-transparent rounded-full blur-[150px] pointer-events-none z-0"></div>
 
@@ -230,26 +277,32 @@ export default function Home() {
               {/* STATE 1: UPLOAD */}
               {step === 'upload' && (
                 <motion.div key="upload" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, filter: "blur(10px)" }} className="flex flex-col w-full h-full max-w-xl mx-auto">
-                  <label className="relative flex flex-col items-center justify-center w-full h-64 border border-dashed border-zinc-700/50 hover:border-cyan-500/50 rounded-2xl cursor-pointer transition-all duration-500 bg-white/[0.01] hover:bg-white/[0.03] group/zone">
-                    <AnimatePresence mode="wait">
-                      {!file ? (
-                        <motion.div key="icon1" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col items-center z-10">
-                          <div className="p-5 rounded-2xl border border-zinc-800 bg-zinc-900/50 text-cyan-400 mb-5"><UploadCloud size={36} /></div>
-                          <h3 className="text-xl font-bold text-white mb-2">Initialize Print Job</h3>
-                          <p className="text-sm text-zinc-500">Drag & drop your documents here</p>
-                        </motion.div>
-                      ) : (
-                        <motion.div key="icon2" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center z-10">
-                          <div className="p-5 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 mb-5"><FileText size={36} /></div>
-                          <h3 className="text-xl font-bold text-emerald-400 mb-2 truncate max-w-[250px]">{file.name}</h3>
-                          <p className="text-sm text-zinc-400">Ready for AI Analysis</p>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                    <input type="file" className="hidden" onChange={handleFileChange} accept=".pdf,.docx,.png,.jpg,.jpeg" />
+                  <label className="relative flex flex-col items-center justify-center w-full h-48 border border-dashed border-zinc-700/50 hover:border-cyan-500/50 rounded-2xl cursor-pointer transition-all duration-500 bg-white/[0.01] hover:bg-white/[0.03] group/zone mb-4">
+                    <motion.div key="icon1" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center z-10">
+                      <div className="p-4 rounded-2xl border border-zinc-800 bg-zinc-900/50 text-cyan-400 mb-4"><UploadCloud size={28} /></div>
+                      <h3 className="text-lg font-bold text-white mb-1">Add Documents</h3>
+                      <p className="text-xs text-zinc-500">Click or drag & drop files here</p>
+                    </motion.div>
+                    <input type="file" className="hidden" multiple onChange={handleFileChange} accept=".pdf,.docx,.doc,.png,.jpg,.jpeg" />
                   </label>
-                  <button onClick={handleOptimize} disabled={!file} className={`w-full mt-6 py-4 rounded-xl font-bold flex justify-center space-x-2 transition-all ${file ? "bg-white text-black hover:bg-zinc-200" : "bg-zinc-900 text-zinc-500 cursor-not-allowed"}`}>
-                    {file ? (<><span>Analyze & Configure</span><ChevronRight size={18} /></>) : (<span>Awaiting Document</span>)}
+
+                  {/* CART LIST PREVIEW */}
+                  {selectedFiles.length > 0 && (
+                    <div className="w-full max-h-40 overflow-y-auto pr-2 space-y-2 mb-4 scrollbar-thin scrollbar-thumb-zinc-700">
+                      {selectedFiles.map((f, i) => (
+                        <div key={i} className="flex justify-between items-center bg-zinc-900/50 border border-white/5 rounded-lg p-3">
+                           <div className="flex items-center gap-3 overflow-hidden">
+                             <FileText size={16} className="text-cyan-400 flex-shrink-0" />
+                             <span className="text-sm text-zinc-300 truncate">{f.name}</span>
+                           </div>
+                           <button onClick={() => removeSelectedFile(i)} className="text-zinc-500 hover:text-red-400 transition-colors ml-4"><XCircle size={16}/></button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <button onClick={handleOptimize} disabled={selectedFiles.length === 0} className={`w-full py-4 rounded-xl font-bold flex justify-center space-x-2 transition-all ${selectedFiles.length > 0 ? "bg-white text-black hover:bg-zinc-200" : "bg-zinc-900 text-zinc-500 cursor-not-allowed"}`}>
+                    {selectedFiles.length > 0 ? (<><span>Analyze Cart ({selectedFiles.length})</span><ChevronRight size={18} /></>) : (<span>Awaiting Documents</span>)}
                   </button>
                   <button onClick={resetApp} className="mt-4 text-zinc-500 text-sm font-semibold hover:text-white transition-colors">Abort & Return</button>
                 </motion.div>
@@ -271,8 +324,8 @@ export default function Home() {
                   )}
                   {progress === 100 && basePages > 30 && (
                      <div className="mt-6 text-center">
-                        <p className="text-red-400 font-bold mb-4">Document exceeds 30 pages limit ({basePages} pages).</p>
-                        <button onClick={resetApp} className="bg-zinc-800 text-white px-8 py-3 rounded-xl font-bold hover:bg-zinc-700 transition-colors">Upload Smaller File</button>
+                        <p className="text-red-400 font-bold mb-4">Cart exceeds 30 pages limit ({basePages} pages).</p>
+                        <button onClick={() => { setStep('upload'); setProgress(0); setSelectedFiles([]); }} className="bg-zinc-800 text-white px-8 py-3 rounded-xl font-bold hover:bg-zinc-700 transition-colors">Clear Cart & Retry</button>
                      </div>
                   )}
                   <button onClick={resetApp} className="mt-8 flex items-center gap-1 text-zinc-500 text-sm font-semibold hover:text-red-400 transition-colors"><XCircle size={16}/> Cancel Print</button>
@@ -283,8 +336,23 @@ export default function Home() {
               {step === 'checkout' && (
                 <motion.div key="checkout" initial={{ opacity: 0, x: 50 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }} className="flex flex-col md:flex-row w-full h-full gap-8">
                   <div className="flex-1 flex flex-col space-y-5">
-                    <h3 className="text-xl font-bold text-white mb-2">Print Configuration</h3>
                     
+                    {/* CART PREVIEW LIST */}
+                    <div className="space-y-2 mb-2">
+                      <label className="text-xs text-zinc-400 font-bold uppercase tracking-wider flex items-center gap-2"><FileText size={14}/> Documents in Cart</label>
+                      <div className="max-h-32 overflow-y-auto space-y-2 pr-2 scrollbar-thin scrollbar-thumb-zinc-800">
+                        {backendFiles.map((f, i) => (
+                           <div key={i} className="flex justify-between items-center bg-zinc-900/30 border border-white/5 rounded-lg p-2 px-3">
+                             <div className="flex flex-col overflow-hidden">
+                                <span className="text-xs text-zinc-300 truncate">{f.filename}</span>
+                                <span className="text-[10px] text-zinc-500">{f.pages} pages</span>
+                             </div>
+                             <button onClick={() => setPreviewFile(f.filename)} className="text-cyan-400 hover:text-cyan-300 bg-cyan-400/10 hover:bg-cyan-400/20 p-1.5 rounded-md transition-colors"><Eye size={16}/></button>
+                           </div>
+                        ))}
+                      </div>
+                    </div>
+
                     <div className="space-y-2">
                       <label className="text-xs text-zinc-400 font-bold uppercase tracking-wider flex items-center gap-2"><Palette size={14}/> Ink Type</label>
                       <div className="flex bg-zinc-900/50 p-1 rounded-lg border border-white/5">
@@ -313,11 +381,10 @@ export default function Home() {
                       )}
                     </AnimatePresence>
                     
-                    {/* NEW COPIES SELECTOR */}
                     <div className="space-y-2">
                       <label className="text-xs text-zinc-400 font-bold uppercase tracking-wider flex items-center gap-2 justify-between">
-                        <span className="flex items-center gap-2"><Copy size={14}/> Number of Copies</span>
-                        <span className="text-[10px] text-cyan-500/70">Max {Math.floor(30 / basePages)} allowed</span>
+                        <span className="flex items-center gap-2"><Copy size={14}/> Cart Multiplier</span>
+                        <span className="text-[10px] text-cyan-500/70">Max {maxCopies} sets</span>
                       </label>
                       <div className="flex bg-zinc-900/50 p-1 rounded-lg border border-white/5 items-center justify-between">
                         <button onClick={handleDecrementCopies} disabled={copies <= 1} className="p-3 text-zinc-400 hover:text-white disabled:opacity-30 transition-colors"><Minus size={18}/></button>
@@ -330,8 +397,8 @@ export default function Home() {
 
                   <div className="flex-1 flex flex-col items-center justify-center p-6 bg-zinc-900/40 rounded-3xl border border-white/5 relative overflow-hidden">
                     <div className="w-full mb-6 pb-6 border-b border-white/5 space-y-3">
-                       <div className="flex justify-between text-sm"><span className="text-zinc-400">Pages per copy</span><span className="text-white font-medium">{basePages}</span></div>
-                       <div className="flex justify-between text-sm"><span className="text-zinc-400">Total Print Pages</span><span className="text-cyan-400 font-bold">{totalPages} / 30</span></div>
+                       <div className="flex justify-between text-sm"><span className="text-zinc-400">Total base pages</span><span className="text-white font-medium">{basePages}</span></div>
+                       <div className="flex justify-between text-sm"><span className="text-zinc-400">Total Output Pages</span><span className="text-cyan-400 font-bold">{totalPages} / 30</span></div>
                        <div className="flex justify-between items-end mt-4"><span className="text-zinc-400 font-medium">Total Amount</span><span className="text-4xl font-bold text-cyan-400">₹{currentPrice.toFixed(2)}</span></div>
                     </div>
                     <button onClick={handlePayment} disabled={isPaying || totalPages > 30} className={`w-full py-4 rounded-xl font-bold flex justify-center space-x-2 transition-all ${isPaying || totalPages > 30 ? "bg-zinc-800 text-zinc-500" : "bg-white text-black hover:bg-zinc-200"}`}>
@@ -347,8 +414,8 @@ export default function Home() {
                 <motion.div key="success" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="flex flex-col items-center text-center py-10">
                   <div className="w-24 h-24 bg-emerald-500/10 border border-emerald-500/30 rounded-full flex justify-center items-center mb-6 text-emerald-400"><Check size={48} /></div>
                   <h2 className="text-3xl font-bold text-white mb-2">Payment Verified</h2>
-                  <p className="text-zinc-400 mb-8">Hardware triggered. Document is printing...</p>
-                  <button onClick={resetApp} className="text-sm font-bold text-zinc-500 hover:text-white">Print Another Document</button>
+                  <p className="text-zinc-400 mb-8">Hardware triggered. Cart is printing...</p>
+                  <button onClick={resetApp} className="text-sm font-bold text-zinc-500 hover:text-white">Start New Print Job</button>
                 </motion.div>
               )}
             </AnimatePresence>
