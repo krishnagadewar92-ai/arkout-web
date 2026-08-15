@@ -7,6 +7,7 @@ import {
   Palette, Layers, Maximize, Lock, XCircle, Copy, Plus, Minus
 } from "lucide-react";
 import Image from "next/image";
+import { useTerminalSession } from "../../hooks/useTerminalSession"; // Imported Hook!
 
 type AppStep = 'verify' | 'upload' | 'processing' | 'checkout' | 'success';
 
@@ -27,15 +28,19 @@ export default function Home() {
   const [isVerifying, setIsVerifying] = useState(false);
 
   const [files, setFiles] = useState<File[]>([]);
+  const [uploadedFilenames, setUploadedFilenames] = useState<string[]>([]); // New state to track actual server files
   const [progress, setProgress] = useState(0);
   const [logText, setLogText] = useState("Initializing neural engine...");
-  
+
   const [basePages, setBasePages] = useState(1);
   const [copies, setCopies] = useState(1);
   const [colorMode, setColorMode] = useState<'bw' | 'color'>('bw');
   const [sides, setSides] = useState<'single' | 'double'>('single');
   const [margin, setMargin] = useState<'standard' | 'none'>('standard');
   const [isPaying, setIsPaying] = useState(false);
+
+  // Initialize the session hook using the pin as the session ID
+  const { isSessionValid, errorMessage } = useTerminalSession(pin);
 
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -50,10 +55,7 @@ export default function Home() {
     if (colorMode === 'bw') setMargin('standard');
   }, [colorMode]);
 
-  // Total pages based on copies
   const totalPages = basePages * copies;
-  
-  // Calculate max possible copies without exceeding 30 total pages
   const maxCopies = Math.floor(30 / basePages);
 
   const handleIncrementCopies = () => {
@@ -119,14 +121,20 @@ export default function Home() {
 
       if (response.ok) {
         const data = await response.json();
-        const detectedPages = data.pages > 0 ? data.pages : 1;
+        
+        // Use total_pages from backend
+        const detectedPages = data.total_pages > 0 ? data.total_pages : 1;
         setBasePages(detectedPages);
-        
-        // Reset copies to 1 
+
+        // Save exactly what the server processed (this fixes the iPhone rename issue)
+        if (data.files && Array.isArray(data.files)) {
+            setUploadedFilenames(data.files.map((f: any) => f.filename));
+        }
+
         setCopies(1);
-        
         setProgress(60);
         setLogText(`Transfer complete. Found ${detectedPages} pages...`);
+        
         setTimeout(() => { setProgress(85); setLogText("Loading print configuration matrix..."); }, 1500);
         setTimeout(() => { 
             setProgress(100); 
@@ -168,10 +176,13 @@ export default function Home() {
         handler: async function (response: any) {
           setStep('success'); setIsPaying(false);
           try {
-            await fetch("https://api.arkout.in/api/trigger-print", {
-              method: "POST", headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ filenames: files.map(f => f.name), config: { colorMode, sides, margin, copies } }), 
-            });
+            // LOOP THROUGH THE ACTUAL SERVER FILENAMES TO TRIGGER PRINT!
+            for (const serverFilename of uploadedFilenames) {
+                await fetch("https://api.arkout.in/api/trigger-print", {
+                  method: "POST", headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ filename: serverFilename, config: { colorMode, sides, margin, copies } }), 
+                });
+            }
           } catch (err) { console.error("Hardware trigger failed", err); }
         },
         prefill: { name: "Arkout User", contact: "9999999999" }, theme: { color: "#050505" },
@@ -189,13 +200,29 @@ export default function Home() {
 
   const resetApp = async () => {
     try {
-      await fetch("https://api.arkout.in/api/abort", { method: "POST" });
+      await fetch("https://api.arkout.in/api/abort", { 
+        method: "POST", 
+        body: JSON.stringify({ session_id: pin }) 
+      });
     } catch (e) { console.error("Abort signal failed"); }
-    
-    setFiles([]); setStep('verify'); setProgress(0); setPin("");
+
+    setFiles([]); 
+    setUploadedFilenames([]);
+    setStep('verify'); setProgress(0); setPin("");
     setColorMode('bw'); setSides('single'); setMargin('standard'); 
     setBasePages(1); setCopies(1);
   };
+
+  // Block the UI immediately if the session is locked out by someone else
+  if (!isSessionValid) {
+    return (
+      <main className="min-h-screen bg-black flex flex-col items-center justify-center p-6 text-center font-sans">
+        <XCircle size={64} className="text-red-500 mb-6" />
+        <h1 className="text-2xl font-bold text-white mb-2">Session Grabbed</h1>
+        <p className="text-zinc-400">{errorMessage}</p>
+      </main>
+    );
+  }
 
   return (
     <main className="min-h-screen bg-black flex flex-col items-center justify-center p-6 relative overflow-hidden font-sans selection:bg-cyan-500/30">
@@ -212,26 +239,26 @@ export default function Home() {
         <div className="w-full relative group">
           <div className={`absolute -inset-[1px] rounded-[32px] opacity-50 blur-sm transition-colors duration-1000 ${ step === 'success' ? 'bg-gradient-to-r from-emerald-500/30 via-emerald-400/30 to-emerald-500/30' : 'bg-gradient-to-r from-cyan-500/30 via-purple-500/30 to-cyan-500/30' }`}></div>
           <div className="relative bg-[#050505]/90 backdrop-blur-3xl border border-white/10 rounded-[32px] p-8 md:p-10 shadow-2xl overflow-hidden min-h-[450px] flex flex-col justify-center">
-            
+
             <AnimatePresence mode="wait">
-              
+
               {/* STATE 0: PROXIMITY VERIFICATION */}
               {step === 'verify' && (
                 <motion.div key="verify" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, filter: "blur(10px)" }} className="flex flex-col w-full h-full max-w-sm mx-auto items-center text-center justify-center">
                   <div className="p-5 rounded-full border border-cyan-500/30 bg-cyan-500/10 text-cyan-400 mb-6"><Lock size={40} /></div>
                   <h3 className="text-2xl font-bold text-white mb-2">Terminal Lock</h3>
                   <p className="text-sm text-zinc-400 mb-8">Enter the 4-digit PIN displayed on the hardware screen to verify proximity.</p>
-                  
+
                   <input type="text" maxLength={4} placeholder="0000" value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))} className="w-full bg-zinc-900/50 border border-white/10 rounded-xl py-4 text-center text-3xl font-mono text-white tracking-widest focus:outline-none focus:border-cyan-500/50 transition-colors mb-4"/>
                   {pinError && <p className="text-red-400 text-sm mb-4">{pinError}</p>}
-                  
+
                   <button onClick={() => verifyTerminalPin(pin)} disabled={pin.length !== 4 || isVerifying} className={`w-full py-4 rounded-xl font-bold flex justify-center items-center space-x-2 transition-all ${pin.length === 4 ? "bg-white text-black hover:bg-zinc-200" : "bg-zinc-900 text-zinc-500 cursor-not-allowed"}`}>
                     {isVerifying ? <span>Verifying...</span> : <span>Unlock Terminal</span>}
                   </button>
                 </motion.div>
               )}
 
-              {/* STATE 1: UPLOAD */}
+              {/* STATE 1: UPLOAD (.heic included in accept attribute!) */}
               {step === 'upload' && (
                 <motion.div key="upload" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, filter: "blur(10px)" }} className="flex flex-col w-full h-full max-w-xl mx-auto">
                   <label className="relative flex flex-col items-center justify-center w-full min-h-[16rem] p-6 border border-white/10 rounded-2xl cursor-pointer transition-all duration-300 bg-white/[0.02] backdrop-blur-md hover:bg-white/[0.05] hover:border-white/20 group/zone shadow-[0_4px_30px_rgba(0,0,0,0.1)]">
@@ -242,7 +269,7 @@ export default function Home() {
                             <UploadCloud size={32} />
                           </div>
                           <h3 className="text-lg font-semibold text-white mb-1 tracking-tight">Initialize Print Job</h3>
-                          <p className="text-sm text-zinc-500 font-medium">Select multiple documents</p>
+                          <p className="text-sm text-zinc-500 font-medium text-center">Tap to select documents<br/>(PDF, JPG, PNG, HEIC)</p>
                         </motion.div>
                       ) : (
                         <motion.div key="icon2" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col w-full gap-3 z-10 overflow-y-auto max-h-[200px] pr-2 custom-scrollbar">
@@ -255,9 +282,9 @@ export default function Home() {
                         </motion.div>
                       )}
                     </AnimatePresence>
-                    <input type="file" multiple className="hidden" onChange={handleFileChange} accept=".pdf,.docx,.png,.jpg,.jpeg" />
+                    <input type="file" multiple className="hidden" onChange={handleFileChange} accept=".pdf,.docx,.png,.jpg,.jpeg,.heic" />
                   </label>
-                  
+
                   <button onClick={handleOptimize} disabled={files.length === 0} className={`w-full mt-6 py-4 rounded-xl font-bold flex justify-center space-x-2 transition-all ${files.length > 0 ? "bg-white text-black hover:bg-zinc-200" : "bg-zinc-900 text-zinc-500 cursor-not-allowed"}`}>
                     {files.length > 0 ? (<><span>Analyze & Configure</span><ChevronRight size={18} /></>) : (<span>Awaiting Documents</span>)}
                   </button>
@@ -294,7 +321,7 @@ export default function Home() {
                 <motion.div key="checkout" initial={{ opacity: 0, x: 50 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }} className="flex flex-col md:flex-row w-full h-full gap-8">
                   <div className="flex-1 flex flex-col space-y-5">
                     <h3 className="text-xl font-bold text-white mb-2">Print Configuration</h3>
-                    
+
                     <div className="space-y-2">
                       <label className="text-xs text-zinc-400 font-bold uppercase tracking-wider flex items-center gap-2"><Palette size={14}/> Ink Type</label>
                       <div className="flex bg-zinc-900/50 p-1 rounded-lg border border-white/5">
@@ -322,8 +349,7 @@ export default function Home() {
                         </motion.div>
                       )}
                     </AnimatePresence>
-                    
-                    {/* NEW COPIES SELECTOR */}
+
                     <div className="space-y-2">
                       <label className="text-xs text-zinc-400 font-bold uppercase tracking-wider flex items-center gap-2 justify-between">
                         <span className="flex items-center gap-2"><Copy size={14}/> Number of Copies</span>
