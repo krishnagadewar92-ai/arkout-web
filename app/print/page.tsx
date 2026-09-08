@@ -175,10 +175,22 @@ export default function Home() {
           } catch (err) { console.error("Hardware trigger failed", err); }
         },
         prefill: { name: "Arkout User", contact: "9999999999" }, theme: { color: "#000000" },
+        
+        // --- NEW FIX: Handles the user manually closing the Razorpay window ---
+        modal: {
+            ondismiss: function() {
+                setIsPaying(false); // Un-sticks the button on the phone
+                // Revert kiosk screen back to processing
+                fetch(`${apiBaseUrl}/api/set-state`, {
+                    method: "POST", headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ status: "processing" })
+                }).catch(() => {});
+            }
+        }
       };
       const rzp = new (window as any).Razorpay(options);
       
-      // --- NEW: Tell the Kiosk to show "Confirming Payment" right before the paywall opens ---
+      // Tell the Kiosk to show "Confirming Payment" right before the paywall opens
       fetch(`${apiBaseUrl}/api/set-state`, {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: "payment" })
@@ -187,7 +199,7 @@ export default function Home() {
       rzp.on("payment.failed", function (response: any) {
         alert("Payment Failed: " + response.error.description);
         setIsPaying(false);
-        // --- NEW: If payment fails/cancels, revert kiosk back to processing state ---
+        // Revert kiosk back to processing if payment genuinely fails
         fetch(`${apiBaseUrl}/api/set-state`, {
             method: "POST", headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ status: "processing" })
