@@ -177,10 +177,23 @@ export default function Home() {
         prefill: { name: "Arkout User", contact: "9999999999" }, theme: { color: "#000000" },
       };
       const rzp = new (window as any).Razorpay(options);
+      
+      // --- NEW: Tell the Kiosk to show "Confirming Payment" right before the paywall opens ---
+      fetch(`${apiBaseUrl}/api/set-state`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "payment" })
+      }).catch(() => {});
+
       rzp.on("payment.failed", function (response: any) {
         alert("Payment Failed: " + response.error.description);
         setIsPaying(false);
+        // --- NEW: If payment fails/cancels, revert kiosk back to processing state ---
+        fetch(`${apiBaseUrl}/api/set-state`, {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ status: "processing" })
+        }).catch(() => {});
       });
+
       rzp.open();
     } catch (err) {
       alert("Gateway error."); setIsPaying(false);
