@@ -183,6 +183,7 @@ export default function Home() {
         },
         prefill: { name: "Arkout User", contact: "9999999999" }, theme: { color: "#000000" },
         
+        // Handles the user manually closing the Razorpay window
         modal: {
             ondismiss: function() {
                 setIsPaying(false); 
@@ -195,6 +196,7 @@ export default function Home() {
       };
       const rzp = new (window as any).Razorpay(options);
       
+      // Tell the Kiosk to show "Confirming Payment" right before the paywall opens
       fetch(`${apiBaseUrl}/api/set-state`, {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: "payment" })
@@ -216,8 +218,19 @@ export default function Home() {
   };
 
   const handleReviewSubmit = async () => {
-    // You can later add a fetch call here to send the review to your database
     setIsReviewSubmitted(true);
+    try {
+      await fetch(`${apiBaseUrl}/api/submit-review`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          rating: rating, 
+          review_text: reviewText 
+        })
+      });
+    } catch (err) { 
+      console.error("Failed to submit review", err); 
+    }
   };
 
   const resetApp = async () => {
@@ -246,6 +259,7 @@ export default function Home() {
   return (
     <main className="min-h-screen w-full relative overflow-hidden font-sans text-white flex flex-col items-center justify-center p-4 md:p-6 bg-zinc-950">
       
+      {/* BACKGROUND ADVERTISEMENT LAYER */}
       <div className={`absolute inset-0 transition-all duration-700 ease-in-out z-0 flex items-center justify-center overflow-hidden pointer-events-none ${step !== 'verify' ? 'blur-3xl scale-105 opacity-40' : 'blur-none opacity-100'}`}>
         <div className="absolute inset-0 bg-gradient-to-tr from-cyan-900/20 via-black to-purple-900/20 z-10"></div>
         <div className="relative z-0 flex flex-col items-center text-center p-12 max-w-4xl">
@@ -260,6 +274,7 @@ export default function Home() {
       </div>
 
       <div className="z-10 w-full max-w-2xl flex flex-col items-center">
+        
         <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="text-center mb-6">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/[0.08] backdrop-blur-xl border border-white/10 text-xs font-medium text-zinc-300 mb-3 shadow-sm">
             <Sparkles size={12} className="text-cyan-400" /> Arkout Secure Kiosk Node
@@ -273,6 +288,7 @@ export default function Home() {
 
             <AnimatePresence mode="wait">
 
+              {/* STEP 0: PIN VERIFICATION */}
               {step === 'verify' && (
                 <motion.div key="verify" initial={{ opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, filter: "blur(10px)" }} className="flex flex-col w-full max-w-sm mx-auto items-center text-center justify-center my-auto">
                   <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-white/10 to-white/[0.02] border border-white/15 flex items-center text-cyan-400 justify-center mb-5 shadow-inner">
@@ -301,6 +317,7 @@ export default function Home() {
                 </motion.div>
               )}
 
+              {/* STEP 1: FILE DROP ZONE */}
               {step === 'upload' && (
                 <motion.div key="upload" initial={{ opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, filter: "blur(10px)" }} className="flex flex-col w-full max-w-lg mx-auto my-auto">
                   <h3 className="text-xl font-semibold tracking-tight mb-2">Select Documents</h3>
@@ -337,6 +354,7 @@ export default function Home() {
                 </motion.div>
               )}
 
+              {/* STEP 2: PROCESSING ANIMATION */}
               {step === 'processing' && (
                 <motion.div key="processing" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col items-center justify-center my-auto py-6">
                   <div className="w-16 h-16 rounded-2xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400 mb-6">
@@ -367,6 +385,7 @@ export default function Home() {
                 </motion.div>
               )}
 
+              {/* STEP 3: CHECKOUT & CONFIG */}
               {step === 'checkout' && (
                 <motion.div key="checkout" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }} className="flex flex-col md:flex-row w-full gap-6 my-auto">
                   <div className="flex-1 flex flex-col space-y-4">
