@@ -7,7 +7,7 @@ import {
   Palette, Layers, Maximize, Lock, XCircle, Copy, Plus, Minus
 } from "lucide-react";
 import Image from "next/image";
-import { useTerminalSession } from "../../hooks/useTerminalSession"; // Imported Hook!
+import { useTerminalSession } from "../../hooks/useTerminalSession"; 
 
 type AppStep = 'verify' | 'upload' | 'processing' | 'checkout' | 'success';
 
@@ -26,9 +26,13 @@ export default function Home() {
   const [pin, setPin] = useState("");
   const [pinError, setPinError] = useState("");
   const [isVerifying, setIsVerifying] = useState(false);
+  
+  // --- NEW: Dynamic API Routing State ---
+  // Defaults to Terminal-01. Will update if Terminal-02 PIN is detected.
+  const [apiBaseUrl, setApiBaseUrl] = useState("https://api.arkout.in");
 
   const [files, setFiles] = useState<File[]>([]);
-  const [uploadedFilenames, setUploadedFilenames] = useState<string[]>([]); // New state to track actual server files
+  const [uploadedFilenames, setUploadedFilenames] = useState<string[]>([]); 
   const [progress, setProgress] = useState(0);
   const [logText, setLogText] = useState("Initializing neural engine...");
 
@@ -77,11 +81,28 @@ export default function Home() {
     return safePages * pricePerPage;
   }, [totalPages, colorMode, margin]);
 
+  // --- UPDATED: Length-Based Routing Logic ---
   const verifyTerminalPin = async (pinToVerify: string) => {
     setIsVerifying(true);
     setPinError("");
+    
+    let targetUrl = "https://api.arkout.in"; // Default: Terminal-01
+    
+    // Check if it's a Terminal-02 PIN
+    if (pinToVerify.length === 6 && pinToVerify.startsWith("02")) {
+        // Route directly to the new Cloudflare tunnel for Terminal-02
+        targetUrl = process.env.NEXT_PUBLIC_TERMINAL_02_URL || "https://api2.arkout.in";
+    } else if (pinToVerify.length !== 4) {
+        setPinError("Invalid PIN format.");
+        setIsVerifying(false);
+        return;
+    }
+
+    setApiBaseUrl(targetUrl);
+
     try {
-      const response = await fetch("https://api.arkout.in/api/verify-pin", {
+      // Uses the dynamically routed URL
+      const response = await fetch(`${targetUrl}/api/verify-pin`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ pin: pinToVerify }),
@@ -117,16 +138,16 @@ export default function Home() {
 
     try {
       setTimeout(() => { setProgress(25); setLogText("Transmitting documents to Python backend..."); }, 400);
-      const response = await fetch("https://api.arkout.in/upload", { method: "POST", body: formData });
+      
+      // Uses the dynamically routed URL
+      const response = await fetch(`${apiBaseUrl}/upload`, { method: "POST", body: formData });
 
       if (response.ok) {
         const data = await response.json();
         
-        // Use total_pages from backend
         const detectedPages = data.total_pages > 0 ? data.total_pages : 1;
         setBasePages(detectedPages);
 
-        // Save exactly what the server processed (this fixes the iPhone rename issue)
         if (data.files && Array.isArray(data.files)) {
             setUploadedFilenames(data.files.map((f: any) => f.filename));
         }
@@ -161,7 +182,8 @@ export default function Home() {
     }
 
     try {
-      const orderRes = await fetch("https://api.arkout.in/api/create-order", {
+      // Uses the dynamically routed URL
+      const orderRes = await fetch(`${apiBaseUrl}/api/create-order`, {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ amount: currentPrice }),
       });
@@ -171,14 +193,14 @@ export default function Home() {
       const options = {
         key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID, 
         amount: order.amount, currency: order.currency,
-        name: "Arkout Print Hub", description: `Terminal 01 - ${totalPages} Pages`,
+        name: "Arkout Print Hub", description: `Terminal - ${totalPages} Pages`,
         order_id: order.id,
         handler: async function (response: any) {
           setStep('success'); setIsPaying(false);
           try {
-            // LOOP THROUGH THE ACTUAL SERVER FILENAMES TO TRIGGER PRINT!
             for (const serverFilename of uploadedFilenames) {
-                await fetch("https://api.arkout.in/api/trigger-print", {
+                // Uses the dynamically routed URL to trigger hardware
+                await fetch(`${apiBaseUrl}/api/trigger-print`, {
                   method: "POST", headers: { "Content-Type": "application/json" },
                   body: JSON.stringify({ filename: serverFilename, config: { colorMode, sides, margin, copies } }), 
                 });
@@ -200,7 +222,8 @@ export default function Home() {
 
   const resetApp = async () => {
     try {
-      await fetch("https://api.arkout.in/api/abort", { 
+      // Uses the dynamically routed URL
+      await fetch(`${apiBaseUrl}/api/abort`, { 
         method: "POST", 
         body: JSON.stringify({ session_id: pin }) 
       });
@@ -211,9 +234,11 @@ export default function Home() {
     setStep('verify'); setProgress(0); setPin("");
     setColorMode('bw'); setSides('single'); setMargin('standard'); 
     setBasePages(1); setCopies(1);
+    
+    // Reset to default
+    setApiBaseUrl("https://api.arkout.in");
   };
 
-  // Block the UI immediately if the session is locked out by someone else
   if (!isSessionValid) {
     return (
       <main className="min-h-screen bg-black flex flex-col items-center justify-center p-6 text-center font-sans">
@@ -247,18 +272,18 @@ export default function Home() {
                 <motion.div key="verify" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, filter: "blur(10px)" }} className="flex flex-col w-full h-full max-w-sm mx-auto items-center text-center justify-center">
                   <div className="p-5 rounded-full border border-cyan-500/30 bg-cyan-500/10 text-cyan-400 mb-6"><Lock size={40} /></div>
                   <h3 className="text-2xl font-bold text-white mb-2">Terminal Lock</h3>
-                  <p className="text-sm text-zinc-400 mb-8">Enter the 4-digit PIN displayed on the hardware screen to verify proximity.</p>
+                  <p className="text-sm text-zinc-400 mb-8">Enter the PIN displayed on the hardware screen to verify proximity.</p>
 
-                  <input type="text" maxLength={4} placeholder="0000" value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))} className="w-full bg-zinc-900/50 border border-white/10 rounded-xl py-4 text-center text-3xl font-mono text-white tracking-widest focus:outline-none focus:border-cyan-500/50 transition-colors mb-4"/>
+                  <input type="text" maxLength={6} placeholder="0000" value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))} className="w-full bg-zinc-900/50 border border-white/10 rounded-xl py-4 text-center text-3xl font-mono text-white tracking-widest focus:outline-none focus:border-cyan-500/50 transition-colors mb-4"/>
                   {pinError && <p className="text-red-400 text-sm mb-4">{pinError}</p>}
 
-                  <button onClick={() => verifyTerminalPin(pin)} disabled={pin.length !== 4 || isVerifying} className={`w-full py-4 rounded-xl font-bold flex justify-center items-center space-x-2 transition-all ${pin.length === 4 ? "bg-white text-black hover:bg-zinc-200" : "bg-zinc-900 text-zinc-500 cursor-not-allowed"}`}>
+                  <button onClick={() => verifyTerminalPin(pin)} disabled={(pin.length !== 4 && pin.length !== 6) || isVerifying} className={`w-full py-4 rounded-xl font-bold flex justify-center items-center space-x-2 transition-all ${(pin.length === 4 || pin.length === 6) ? "bg-white text-black hover:bg-zinc-200" : "bg-zinc-900 text-zinc-500 cursor-not-allowed"}`}>
                     {isVerifying ? <span>Verifying...</span> : <span>Unlock Terminal</span>}
                   </button>
                 </motion.div>
               )}
 
-              {/* STATE 1: UPLOAD (.heic included in accept attribute!) */}
+              {/* STATE 1: UPLOAD */}
               {step === 'upload' && (
                 <motion.div key="upload" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, filter: "blur(10px)" }} className="flex flex-col w-full h-full max-w-xl mx-auto">
                   <label className="relative flex flex-col items-center justify-center w-full min-h-[16rem] p-6 border border-white/10 rounded-2xl cursor-pointer transition-all duration-300 bg-white/[0.02] backdrop-blur-md hover:bg-white/[0.05] hover:border-white/20 group/zone shadow-[0_4px_30px_rgba(0,0,0,0.1)]">
