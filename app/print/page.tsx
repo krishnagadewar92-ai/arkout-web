@@ -4,7 +4,7 @@ import { useState, useMemo, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   UploadCloud, FileText, ChevronRight, Cpu, Check, 
-  Palette, Layers, Maximize, Lock, XCircle, Copy, Plus, Minus, Sparkles
+  Palette, Layers, Maximize, Lock, XCircle, Copy, Plus, Minus, Sparkles, Star
 } from "lucide-react";
 import Image from "next/image";
 import { useTerminalSession } from "../../hooks/useTerminalSession"; 
@@ -41,6 +41,12 @@ export default function Home() {
   const [margin, setMargin] = useState<'standard' | 'none'>('standard');
   const [isPaying, setIsPaying] = useState(false);
 
+  // Review States
+  const [rating, setRating] = useState(0);
+  const [hoveredStar, setHoveredStar] = useState(0);
+  const [reviewText, setReviewText] = useState("");
+  const [isReviewSubmitted, setIsReviewSubmitted] = useState(false);
+
   const { isSessionValid, errorMessage } = useTerminalSession(pin);
 
   useEffect(() => {
@@ -52,6 +58,7 @@ export default function Home() {
     }
   }, []);
 
+  // Reset margin to standard if user switches back to B&W
   useEffect(() => {
     if (colorMode === 'bw') setMargin('standard');
   }, [colorMode]);
@@ -176,11 +183,9 @@ export default function Home() {
         },
         prefill: { name: "Arkout User", contact: "9999999999" }, theme: { color: "#000000" },
         
-        // --- NEW FIX: Handles the user manually closing the Razorpay window ---
         modal: {
             ondismiss: function() {
-                setIsPaying(false); // Un-sticks the button on the phone
-                // Revert kiosk screen back to processing
+                setIsPaying(false); 
                 fetch(`${apiBaseUrl}/api/set-state`, {
                     method: "POST", headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ status: "processing" })
@@ -190,7 +195,6 @@ export default function Home() {
       };
       const rzp = new (window as any).Razorpay(options);
       
-      // Tell the Kiosk to show "Confirming Payment" right before the paywall opens
       fetch(`${apiBaseUrl}/api/set-state`, {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: "payment" })
@@ -199,7 +203,6 @@ export default function Home() {
       rzp.on("payment.failed", function (response: any) {
         alert("Payment Failed: " + response.error.description);
         setIsPaying(false);
-        // Revert kiosk back to processing if payment genuinely fails
         fetch(`${apiBaseUrl}/api/set-state`, {
             method: "POST", headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ status: "processing" })
@@ -212,6 +215,11 @@ export default function Home() {
     }
   };
 
+  const handleReviewSubmit = async () => {
+    // You can later add a fetch call here to send the review to your database
+    setIsReviewSubmitted(true);
+  };
+
   const resetApp = async () => {
     try {
       await fetch(`${apiBaseUrl}/api/abort`, { method: "POST", body: JSON.stringify({ session_id: pin }) });
@@ -221,6 +229,7 @@ export default function Home() {
     setStep('verify'); setProgress(0); setPin("");
     setColorMode('bw'); setSides('single'); setMargin('standard'); 
     setBasePages(1); setCopies(1);
+    setRating(0); setReviewText(""); setIsReviewSubmitted(false);
     setApiBaseUrl("https://api.arkout.in");
   };
 
@@ -237,10 +246,8 @@ export default function Home() {
   return (
     <main className="min-h-screen w-full relative overflow-hidden font-sans text-white flex flex-col items-center justify-center p-4 md:p-6 bg-zinc-950">
       
-      {/* --- BACKGROUND ADVERTISEMENT LAYER (Dynamically Blurs when active) --- */}
       <div className={`absolute inset-0 transition-all duration-700 ease-in-out z-0 flex items-center justify-center overflow-hidden pointer-events-none ${step !== 'verify' ? 'blur-3xl scale-105 opacity-40' : 'blur-none opacity-100'}`}>
         <div className="absolute inset-0 bg-gradient-to-tr from-cyan-900/20 via-black to-purple-900/20 z-10"></div>
-        {/* Simulated Advertisement Content / Poster Loop */}
         <div className="relative z-0 flex flex-col items-center text-center p-12 max-w-4xl">
           <span className="px-4 py-1.5 rounded-full bg-white/10 text-cyan-400 text-xs font-medium tracking-widest uppercase mb-4 backdrop-blur-md">Sponsored • Arkout Ecosystem</span>
           <h1 className="text-5xl md:text-7xl font-bold tracking-tight text-transparent bg-clip-text bg-gradient-to-b from-white to-zinc-500 mb-6">
@@ -252,25 +259,20 @@ export default function Home() {
         </div>
       </div>
 
-      {/* --- APPLE GLASS INTERFACE OVERLAY --- */}
       <div className="z-10 w-full max-w-2xl flex flex-col items-center">
-        
-        {/* Minimalist Apple Header Branding */}
         <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="text-center mb-6">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/[0.08] backdrop-blur-xl border border-white/10 text-xs font-medium text-zinc-300 mb-3 shadow-sm">
             <Sparkles size={12} className="text-cyan-400" /> Arkout Secure Kiosk Node
           </div>
         </motion.div>
 
-        {/* Main Cupertino Glass Card */}
         <div className="w-full relative">
           <div className="absolute -inset-[1px] rounded-[36px] bg-gradient-to-b from-white/20 to-white/5 opacity-50 blur-[2px]"></div>
           
-          <div className="relative bg-zinc-900/75 backdrop-blur-2xl border border-white/15 rounded-[34px] p-8 md:p-10 shadow-[0_20px_50px_rgba(0,0,0,0.6)] overflow-hidden min-h-[420px] flex flex-col justify-between">
+          <div className="relative bg-zinc-900/75 backdrop-blur-2xl border border-white/15 rounded-[34px] p-6 md:p-10 shadow-[0_20px_50px_rgba(0,0,0,0.6)] overflow-hidden min-h-[420px] flex flex-col justify-between">
 
             <AnimatePresence mode="wait">
 
-              {/* STEP 0: PIN VERIFICATION */}
               {step === 'verify' && (
                 <motion.div key="verify" initial={{ opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, filter: "blur(10px)" }} className="flex flex-col w-full max-w-sm mx-auto items-center text-center justify-center my-auto">
                   <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-white/10 to-white/[0.02] border border-white/15 flex items-center text-cyan-400 justify-center mb-5 shadow-inner">
@@ -299,7 +301,6 @@ export default function Home() {
                 </motion.div>
               )}
 
-              {/* STEP 1: FILE DROP ZONE */}
               {step === 'upload' && (
                 <motion.div key="upload" initial={{ opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, filter: "blur(10px)" }} className="flex flex-col w-full max-w-lg mx-auto my-auto">
                   <h3 className="text-xl font-semibold tracking-tight mb-2">Select Documents</h3>
@@ -336,7 +337,6 @@ export default function Home() {
                 </motion.div>
               )}
 
-              {/* STEP 2: PROCESSING ANIMATION */}
               {step === 'processing' && (
                 <motion.div key="processing" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col items-center justify-center my-auto py-6">
                   <div className="w-16 h-16 rounded-2xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400 mb-6">
@@ -367,7 +367,6 @@ export default function Home() {
                 </motion.div>
               )}
 
-              {/* STEP 3: CHECKOUT & CONFIG */}
               {step === 'checkout' && (
                 <motion.div key="checkout" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }} className="flex flex-col md:flex-row w-full gap-6 my-auto">
                   <div className="flex-1 flex flex-col space-y-4">
@@ -381,6 +380,17 @@ export default function Home() {
                         <button onClick={() => setColorMode('color')} className={`flex-1 py-2.5 rounded-xl text-xs font-medium transition-all ${colorMode === 'color' ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30' : 'text-zinc-400'}`}>Color (₹7)</button>
                       </div>
                     </div>
+
+                    {/* Borders Options - Only visible if Color is selected */}
+                    {colorMode === 'color' && (
+                      <div className="space-y-1.5">
+                        <label className="text-[11px] text-zinc-400 font-semibold uppercase tracking-wider">Borders</label>
+                        <div className="flex bg-black/40 p-1 rounded-2xl border border-white/10">
+                          <button onClick={() => setMargin('standard')} className={`flex-1 py-2.5 rounded-xl text-xs font-medium transition-all ${margin === 'standard' ? 'bg-white/10 text-white shadow-sm' : 'text-zinc-400'}`}>Standard (₹7)</button>
+                          <button onClick={() => setMargin('none')} className={`flex-1 py-2.5 rounded-xl text-xs font-medium transition-all ${margin === 'none' ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30' : 'text-zinc-400'}`}>Borderless (₹10)</button>
+                        </div>
+                      </div>
+                    )}
 
                     {/* Layout Mode */}
                     <div className="space-y-1.5">
@@ -426,15 +436,69 @@ export default function Home() {
                 </motion.div>
               )}
 
-              {/* STEP 4: SUCCESS */}
+              {/* STEP 4: SUCCESS & RATING */}
               {step === 'success' && (
-                <motion.div key="success" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="flex flex-col items-center text-center my-auto py-8">
-                  <div className="w-20 h-20 bg-emerald-500/10 border border-emerald-500/30 rounded-3xl flex items-center justify-center text-emerald-400 mb-6 shadow-lg">
-                    <Check size={36} />
+                <motion.div key="success" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="flex flex-col items-center w-full my-auto py-4">
+                  <div className="w-14 h-14 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl flex items-center justify-center text-emerald-400 mb-4 shadow-lg">
+                    <Check size={28} />
                   </div>
-                  <h2 className="text-2xl font-semibold tracking-tight mb-2">Payment Confirmed</h2>
-                  <p className="text-sm text-zinc-400 mb-8">Hardware triggered successfully. Collecting your prints...</p>
-                  <button onClick={resetApp} className="px-8 py-3.5 rounded-2xl font-semibold text-xs bg-white text-black hover:bg-zinc-200 transition-all">
+                  <h2 className="text-xl font-semibold tracking-tight mb-1">Payment Confirmed</h2>
+                  <p className="text-xs text-zinc-400 mb-6 text-center">Hardware triggered successfully. Collecting your prints...</p>
+
+                  {/* Rating Component */}
+                  {!isReviewSubmitted ? (
+                    <div className="w-full max-w-sm bg-black/40 border border-white/10 rounded-3xl p-5 mb-6 flex flex-col items-center transition-all">
+                      <h4 className="text-sm font-medium mb-3 text-zinc-200">Rate your experience</h4>
+                      <div className="flex gap-3 mb-2">
+                        {[1, 2, 3, 4, 5].map((star) => (
+                          <button 
+                            key={star} 
+                            onMouseEnter={() => setHoveredStar(star)}
+                            onMouseLeave={() => setHoveredStar(0)}
+                            onClick={() => setRating(star)}
+                            className="focus:outline-none transition-transform hover:scale-125"
+                          >
+                            <Star 
+                              size={28} 
+                              className={`${(hoveredStar || rating) >= star ? 'text-amber-400 fill-amber-400 drop-shadow-[0_0_10px_rgba(251,191,36,0.5)]' : 'text-zinc-700'} transition-all duration-300`} 
+                            />
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Expandable Review Text Area */}
+                      <AnimatePresence>
+                        {rating > 0 && (
+                          <motion.div 
+                            initial={{ opacity: 0, height: 0, marginTop: 0 }} 
+                            animate={{ opacity: 1, height: "auto", marginTop: 16 }} 
+                            exit={{ opacity: 0, height: 0 }}
+                            className="w-full flex flex-col gap-3 overflow-hidden"
+                          >
+                            <textarea 
+                              placeholder="Tell us what you loved or what we can improve..."
+                              value={reviewText}
+                              onChange={(e) => setReviewText(e.target.value)}
+                              className="w-full bg-black/50 border border-white/15 rounded-xl p-3 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-cyan-400/50 resize-none h-20"
+                            />
+                            <button onClick={handleReviewSubmit} className="w-full py-2.5 rounded-xl bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 text-xs font-semibold hover:bg-cyan-500/30 transition-all">
+                              Submit Feedback
+                            </button>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+                  ) : (
+                    <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="w-full max-w-sm bg-black/40 border border-white/10 rounded-3xl p-5 mb-6 flex flex-col items-center text-center">
+                      <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center mb-3">
+                        <Star size={20} className="text-amber-400 fill-amber-400" />
+                      </div>
+                      <h4 className="text-sm font-medium text-white mb-1">Thank you!</h4>
+                      <p className="text-xs text-zinc-400">Your feedback helps us refine the Arkout experience.</p>
+                    </motion.div>
+                  )}
+
+                  <button onClick={resetApp} className="px-8 py-3.5 rounded-2xl font-semibold text-xs bg-white text-black hover:bg-zinc-200 transition-all shadow-[0_0_20px_rgba(255,255,255,0.2)]">
                     Print Another Document
                   </button>
                 </motion.div>
