@@ -7,61 +7,61 @@ export default function ArkoutLandingPage() {
       id: 1,
       title: "1. Connect",
       desc: "Enter the 4-digit PIN to unlock terminal[cite: 19]",
-      img: "WhatsApp Image 2026-09-20 at 11.30.43 PM (2)_2.jpeg"
+      img: "WhatsApp Image 2026-09-20 at 11.30.43 PM (2).jpeg"
     },
     {
       id: 2,
       title: "2. Upload",
       desc: "Drag & drop to initialize print job[cite: 18]",
-      img: "WhatsApp Image 2026-09-20 at 11.30.43 PM (1)_2.jpeg"
+      img: "WhatsApp Image 2026-09-20 at 11.30.43 PM (1).jpeg"
     },
     {
       id: 3,
       title: "3. Analyze",
       desc: "Ready for AI Analysis & configure[cite: 20]",
-      img: "WhatsApp Image 2026-09-20 at 11.30.43 PM_2.jpeg"
+      img: "WhatsApp Image 2026-09-20 at 11.30.43 PM.jpeg"
     },
     {
       id: 4,
       title: "4. Configure",
       desc: "Select ink type and print layout[cite: 23]",
-      img: "WhatsApp Image 2026-09-20 at 11.30.44 PM_2.jpeg"
+      img: "WhatsApp Image 2026-09-20 at 11.30.44 PM.jpeg"
     },
     {
       id: 5,
       title: "5. Review",
       desc: "Review total pages and secure pay[cite: 21]",
-      img: "WhatsApp Image 2026-09-20 at 11.30.44 PM (1)_2.jpeg"
+      img: "WhatsApp Image 2026-09-20 at 11.30.44 PM (1).jpeg"
     },
     {
       id: 6,
       title: "6. Payment Option",
       desc: "Select UPI or preferred payment[cite: 22]",
-      img: "WhatsApp Image 2026-09-20 at 11.30.44 PM (2)_2.jpeg"
+      img: "WhatsApp Image 2026-09-20 at 11.30.44 PM (2).jpeg"
     },
     {
       id: 7,
       title: "7. Processing",
       desc: "Securely processing your payment[cite: 14]",
-      img: "WhatsApp Image 2026-09-20 at 11.30.41 PM_2.jpeg"
+      img: "WhatsApp Image 2026-09-20 at 11.30.41 PM.jpeg"
     },
     {
       id: 8,
       title: "8. Confirming",
       desc: "Razorpay transaction confirmation[cite: 15]",
-      img: "WhatsApp Image 2026-09-20 at 11.30.42 PM (1)_2.jpeg"
+      img: "WhatsApp Image 2026-09-20 at 11.30.42 PM (1).jpeg"
     },
     {
       id: 9,
       title: "9. Success",
       desc: "Payment verified and successful[cite: 16]",
-      img: "WhatsApp Image 2026-09-20 at 11.30.42 PM (2)_2.jpeg"
+      img: "WhatsApp Image 2026-09-20 at 11.30.42 PM (2).jpeg"
     },
     {
       id: 10,
       title: "10. Printing",
       desc: "Hardware triggered instantly[cite: 17]",
-      img: "WhatsApp Image 2026-09-20 at 11.30.42 PM_2.jpeg"
+      img: "WhatsApp Image 2026-09-20 at 11.30.42 PM.jpeg"
     }
   ];
 
