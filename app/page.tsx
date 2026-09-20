@@ -8,11 +8,11 @@ export default function ArkoutLandingPage() {
       {/* Navigation */}
       <nav className="sticky top-0 z-50 flex items-center justify-between px-6 py-4 bg-white/80 border-b border-slate-200 backdrop-blur-md">
         <div className="flex items-center gap-3">
-          {/* Arkout Logo */}
+          {/* Arkout Logo - Ensure 'logo.jpeg' is in your Next.js 'public' folder */}
           <img 
-            src="/WhatsApp Image 2026-09-20 at 11.39.34 PM.jpeg" 
+            src="/logo.jpeg" 
             alt="Arkout Logo" 
-            className="w-10 h-10 rounded-full shadow-sm object-cover"
+            className="w-10 h-10 rounded-full shadow-sm object-cover bg-white"
           />
           <span className="text-xl font-bold tracking-tight text-slate-900">
             ARKOUT
@@ -20,8 +20,6 @@ export default function ArkoutLandingPage() {
         </div>
         <div className="hidden md:flex items-center gap-8 text-sm font-medium text-slate-600">
           <a href="#features" className="hover:text-blue-600 transition-colors">Features</a>
-          <a href="#how-it-works" className="hover:text-blue-600 transition-colors">How it Works</a>
-          <a href="#campuses" className="hover:text-blue-600 transition-colors">Campuses</a>
           <a href="#contact" className="hover:text-blue-600 transition-colors">Contact</a>
         </div>
         <a 
@@ -52,7 +50,7 @@ export default function ArkoutLandingPage() {
             href="/print" 
             className="w-full sm:w-auto px-8 py-4 text-base font-semibold text-white bg-slate-900 rounded-xl hover:bg-slate-800 shadow-lg shadow-slate-200 transition-all flex items-center justify-center gap-2"
           >
-            Open Web Simulator <ArrowRight className="w-5 h-5" />
+            Start Printing <ArrowRight className="w-5 h-5" />
           </a>
           <a 
             href="#contact" 
@@ -130,19 +128,21 @@ export default function ArkoutLandingPage() {
             <span className="text-lg font-semibold text-blue-600">contact@arkout.in</span>
           </a>
 
-          {/* WhatsApp Option */}
-          <div className="flex flex-col items-center justify-center p-10 bg-slate-50 border border-slate-200 rounded-3xl">
-            <div className="w-16 h-16 bg-[#25D366]/10 text-[#25D366] rounded-2xl flex items-center justify-center mb-6">
+          {/* WhatsApp Direct Link Option */}
+          {/* Replace '91XXXXXXXXXX' with your actual country code + phone number without + or spaces */}
+          <a 
+            href="https://wa.me/91XXXXXXXXXX" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="flex flex-col items-center justify-center p-10 bg-slate-50 border border-slate-200 rounded-3xl hover:border-[#25D366]/30 hover:bg-[#25D366]/5 transition-all group"
+          >
+            <div className="w-16 h-16 bg-white shadow-sm border border-slate-200 text-[#25D366] rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
               <MessageCircle className="w-8 h-8" />
             </div>
-            <h3 className="text-xl font-bold text-slate-900 mb-2">WhatsApp</h3>
-            <p className="text-slate-500 mb-6 text-center">Scan the code below for instant support</p>
-            <img 
-              src="/WhatsApp Image 2026-09-20 at 11.42.45 PM.jpeg" 
-              alt="Arkout WhatsApp QR Code" 
-              className="w-40 h-40 rounded-xl shadow-sm border border-slate-200"
-            />
-          </div>
+            <h3 className="text-xl font-bold text-slate-900 mb-2">Chat on WhatsApp</h3>
+            <p className="text-slate-500 mb-4">Get instant support and quick answers</p>
+            <span className="text-lg font-semibold text-[#25D366]">Message Us</span>
+          </a>
         </div>
       </section>
 
@@ -150,10 +150,11 @@ export default function ArkoutLandingPage() {
       <footer className="bg-slate-900 text-slate-400 py-12 text-sm">
         <div className="max-w-6xl mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-6">
           <div className="flex items-center gap-3">
+            {/* Make sure logo.jpeg is in public folder */}
             <img 
-              src="/WhatsApp Image 2026-09-20 at 11.39.34 PM.jpeg" 
+              src="/logo.jpeg" 
               alt="Arkout Logo" 
-              className="w-8 h-8 rounded-full opacity-80"
+              className="w-8 h-8 rounded-full opacity-80 bg-white"
             />
             <span className="text-white font-semibold tracking-wide">ARKOUT</span>
           </div>
