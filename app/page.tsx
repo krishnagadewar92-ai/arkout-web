@@ -1,165 +1,156 @@
-import React from 'react';
-import { Printer, Shield, Zap, MapPin, Mail, MessageCircle, ArrowRight, CheckCircle2 } from 'lucide-react';
+"use client";
 
-export default function ArkoutLandingPage() {
+import { motion } from "framer-motion";
+import { ChevronRight, Zap, Shield, Clock, Smartphone, Cloud, FileText, Lock } from "lucide-react";
+import Image from "next/image";
+
+export default function LandingPage() {
   return (
-    <div className="min-h-screen bg-slate-50 font-sans text-slate-900 selection:bg-blue-100">
+    <main className="min-h-screen bg-[#050505] text-white selection:bg-cyan-500/30 overflow-x-hidden font-sans">
       
-      {/* Navigation */}
-      <nav className="sticky top-0 z-50 flex items-center justify-between px-6 py-4 bg-white/80 border-b border-slate-200 backdrop-blur-md">
-        <div className="flex items-center gap-3">
-          {/* Arkout Logo */}
-          <img 
-            src="/WhatsApp Image 2026-09-20 at 11.39.34 PM.jpeg" 
-            alt="Arkout Logo" 
-            className="w-10 h-10 rounded-full shadow-sm object-cover"
-          />
-          <span className="text-xl font-bold tracking-tight text-slate-900">
-            ARKOUT
-          </span>
-        </div>
-        <div className="hidden md:flex items-center gap-8 text-sm font-medium text-slate-600">
-          <a href="#features" className="hover:text-blue-600 transition-colors">Features</a>
-          <a href="#how-it-works" className="hover:text-blue-600 transition-colors">How it Works</a>
-          <a href="#campuses" className="hover:text-blue-600 transition-colors">Campuses</a>
-          <a href="#contact" className="hover:text-blue-600 transition-colors">Contact</a>
-        </div>
-        <a 
-          href="/print" 
-          className="px-5 py-2.5 text-sm font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 shadow-sm shadow-blue-200 transition-all flex items-center gap-2"
-        >
-          Start Printing <ArrowRight className="w-4 h-4" />
-        </a>
-      </nav>
+      {/* Background Architectural Grid */}
+      <div className="absolute inset-0 bg-[linear-gradient(to_right,#ffffff05_1px,transparent_1px),linear-gradient(to_bottom,#ffffff05_1px,transparent_1px)] bg-[size:64px_64px] pointer-events-none fixed"></div>
+      
+      {/* Deep Ambient Space Glow */}
+      <div className="absolute top-[-10%] left-1/2 -translate-x-1/2 w-[1000px] h-[800px] bg-gradient-to-b from-cyan-500/15 via-purple-500/5 to-transparent rounded-full blur-[150px] pointer-events-none fixed"></div>
 
-      {/* Hero Section */}
-      <section className="relative px-6 pt-24 pb-32 max-w-6xl mx-auto text-center">
-        <div className="inline-flex items-center gap-2 px-3 py-1.5 mb-6 text-sm font-medium text-blue-700 bg-blue-50 border border-blue-100 rounded-full">
-          <span className="flex w-2 h-2 bg-blue-600 rounded-full animate-pulse"></span>
-          Now live at Pemraj Sarda College
-        </div>
-        <h1 className="text-5xl md:text-7xl font-extrabold tracking-tight text-slate-900 mb-6 leading-tight">
-          Modernize Campus Printing. <br className="hidden md:block" />
-          <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-cyan-500">
-            Zero Maintenance Required.
-          </span>
-        </h1>
-        <p className="max-w-2xl mx-auto text-lg md:text-xl text-slate-600 mb-10 leading-relaxed">
-          Arkout is the fully autonomous, secure, and self-sustaining print kiosk designed for modern universities. No paper-jam tickets. No IT overhead.
-        </p>
-        <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+      {/* Glassmorphic Navbar */}
+      <nav className="fixed top-0 w-full z-50 border-b border-white/5 bg-[#050505]/50 backdrop-blur-xl">
+        <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
+          <div className="relative w-32 h-10">
+            {/* FIX: Added 'sizes' to kill the terminal warning */}
+            <Image src="/arkout-logo.png" alt="Arkout" fill sizes="(max-width: 768px) 100vw, 33vw" className="object-contain" priority />
+          </div>
+          <div className="hidden md:flex items-center space-x-8 text-sm font-medium text-zinc-400">
+            <span className="hover:text-white cursor-pointer transition-colors">How it Works</span>
+            <span className="hover:text-white cursor-pointer transition-colors">Features</span>
+            <span className="hover:text-white cursor-pointer transition-colors">Campuses</span>
+          </div>
+          
           <a 
             href="/print" 
-            className="w-full sm:w-auto px-8 py-4 text-base font-semibold text-white bg-slate-900 rounded-xl hover:bg-slate-800 shadow-lg shadow-slate-200 transition-all flex items-center justify-center gap-2"
+            className="bg-white text-black px-5 py-2.5 rounded-full text-sm font-bold hover:scale-105 transition-transform flex items-center gap-2 shadow-[0_0_20px_rgba(255,255,255,0.1)]"
           >
-            Open Web Simulator <ArrowRight className="w-5 h-5" />
+            Launch Hub <ChevronRight size={16} />
           </a>
+        </div>
+      </nav>
+
+      {/* 1. HERO SECTION */}
+      <section className="relative pt-48 pb-20 px-6 max-w-7xl mx-auto flex flex-col items-center text-center z-10">
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}
+          className="inline-flex items-center space-x-2 bg-white/5 border border-white/10 px-4 py-2 rounded-full mb-8 backdrop-blur-md"
+        >
+          <Zap size={14} className="text-cyan-400" />
+          <span className="text-xs font-bold uppercase tracking-widest text-zinc-300">The Future of Campus Printing</span>
+        </motion.div>
+
+        <motion.h1 
+          initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, delay: 0.1 }}
+          className="text-6xl md:text-8xl font-extrabold tracking-tighter mb-8 leading-[1.1]"
+        >
+          Print without <br />
+          <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-purple-500">waiting.</span>
+        </motion.h1>
+
+        <motion.p 
+          initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, delay: 0.2 }}
+          className="text-lg md:text-xl text-zinc-400 max-w-2xl mb-12 font-medium"
+        >
+          Arkout is the world’s first autonomous print station. Scan the code, drop your files, pay with UPI, and collect your documents in under 30 seconds.
+        </motion.p>
+
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, delay: 0.3 }}
+          className="flex flex-col sm:flex-row items-center gap-4"
+        >
           <a 
-            href="#contact" 
-            className="w-full sm:w-auto px-8 py-4 text-base font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-all"
+            href="/print" 
+            className="bg-gradient-to-r from-cyan-500 to-purple-600 text-white px-8 py-4 rounded-full text-lg font-bold hover:opacity-90 transition-opacity flex items-center gap-2 shadow-[0_0_40px_rgba(0,229,255,0.3)]"
           >
-            Partner with Us
+            Try the Web Simulator
           </a>
-        </div>
+        </motion.div>
       </section>
 
-      {/* Trust Ticker */}
-      <div className="border-y border-slate-200 bg-white py-6 overflow-hidden">
-        <div className="max-w-6xl mx-auto px-6 flex flex-wrap justify-center gap-8 md:gap-16 text-sm font-semibold text-slate-500">
-          <span className="flex items-center gap-2"><Shield className="w-4 h-4"/> Military-Grade Security</span>
-          <span className="flex items-center gap-2"><Zap className="w-4 h-4"/> Zero IT Overhead</span>
-          <span className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4"/> 45,000+ Prints Processed</span>
-        </div>
-      </div>
-
-      {/* Features Grid (B2B Focus) */}
-      <section id="features" className="px-6 py-24 max-w-6xl mx-auto">
-        <div className="mb-16 text-center">
-          <h2 className="text-3xl font-bold text-slate-900 mb-4">Engineered for Institutions</h2>
-          <p className="text-slate-600 max-w-2xl mx-auto">We built Arkout to completely remove the administrative burden of campus printing facilities.</p>
-        </div>
-        <div className="grid md:grid-cols-3 gap-8">
-          <div className="p-8 bg-white border border-slate-200 rounded-2xl shadow-sm hover:shadow-md transition-shadow">
-            <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center mb-6">
-              <Zap className="w-6 h-6" />
-            </div>
-            <h3 className="text-xl font-bold text-slate-900 mb-3">Autonomous Operation</h3>
-            <p className="text-slate-600 leading-relaxed">
-              Hardware runs entirely on its own. No ink refill requests, no paper-jam support tickets for your staff to manage.
-            </p>
-          </div>
-          <div className="p-8 bg-white border border-slate-200 rounded-2xl shadow-sm hover:shadow-md transition-shadow">
-            <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center mb-6">
-              <Shield className="w-6 h-6" />
-            </div>
-            <h3 className="text-xl font-bold text-slate-900 mb-3">Zero-Trace Security</h3>
-            <p className="text-slate-600 leading-relaxed">
-              Documents are encrypted in transit and permanently wiped from our servers the exact millisecond printing is complete.
-            </p>
-          </div>
-          <div className="p-8 bg-white border border-slate-200 rounded-2xl shadow-sm hover:shadow-md transition-shadow">
-            <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center mb-6">
-              <Printer className="w-6 h-6" />
-            </div>
-            <h3 className="text-xl font-bold text-slate-900 mb-3">Resource Optimization</h3>
-            <p className="text-slate-600 leading-relaxed">
-              AI automatically detects and removes blank pages, optimizing ink and paper usage while saving students money.
-            </p>
-          </div>
-        </div>
-      </section>
-
-      {/* Contact Section */}
-      <section id="contact" className="px-6 py-24 bg-white border-t border-slate-200">
-        <div className="max-w-4xl mx-auto text-center mb-16">
-          <h2 className="text-3xl font-bold text-slate-900 mb-4">Let's Bring Arkout to Your Campus</h2>
-          <p className="text-slate-600">Have questions about deployment, hardware specs, or pricing? Reach out to our team directly.</p>
-        </div>
-
-        <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
-          {/* Email Option */}
-          <a 
-            href="mailto:contact@arkout.in" 
-            className="flex flex-col items-center justify-center p-10 bg-slate-50 border border-slate-200 rounded-3xl hover:border-blue-300 hover:bg-blue-50/50 transition-all group"
+      {/* 2. TRUST TICKER (Infinite Scroll) */}
+      <section className="w-full border-y border-white/5 bg-[#0A0A0A] py-6 overflow-hidden relative z-10">
+        <div className="absolute inset-y-0 left-0 w-32 bg-gradient-to-r from-[#050505] to-transparent z-10"></div>
+        <div className="absolute inset-y-0 right-0 w-32 bg-gradient-to-l from-[#050505] to-transparent z-10"></div>
+        <div className="flex whitespace-nowrap overflow-hidden">
+          <motion.div 
+            animate={{ x: ["0%", "-50%"] }} transition={{ duration: 20, ease: "linear", repeat: Infinity }}
+            className="flex items-center space-x-16 text-sm font-bold uppercase tracking-widest text-zinc-500"
           >
-            <div className="w-16 h-16 bg-white shadow-sm border border-slate-200 text-blue-600 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-              <Mail className="w-8 h-8" />
-            </div>
-            <h3 className="text-xl font-bold text-slate-900 mb-2">Email Us</h3>
-            <p className="text-slate-500 mb-4">For formal proposals and inquiries</p>
-            <span className="text-lg font-semibold text-blue-600">contact@arkout.in</span>
-          </a>
-
-          {/* WhatsApp Option */}
-          <div className="flex flex-col items-center justify-center p-10 bg-slate-50 border border-slate-200 rounded-3xl">
-            <div className="w-16 h-16 bg-[#25D366]/10 text-[#25D366] rounded-2xl flex items-center justify-center mb-6">
-              <MessageCircle className="w-8 h-8" />
-            </div>
-            <h3 className="text-xl font-bold text-slate-900 mb-2">WhatsApp</h3>
-            <p className="text-slate-500 mb-6 text-center">Scan the code below for instant support</p>
-            <img 
-              src="/WhatsApp Image 2026-09-20 at 11.42.45 PM.jpeg" 
-              alt="Arkout WhatsApp QR Code" 
-              className="w-40 h-40 rounded-xl shadow-sm border border-slate-200"
-            />
-          </div>
+            <span className="flex items-center gap-2"><Clock size={16} className="text-cyan-400"/> Zero Queues</span>
+            <span className="flex items-center gap-2"><Zap size={16} className="text-purple-400"/> 45,000+ Prints This Month</span>
+            <span className="flex items-center gap-2"><Shield size={16} className="text-emerald-400"/> Military-Grade File Security</span>
+            <span>Deployed at 12 Campuses</span>
+            <span className="flex items-center gap-2"><Clock size={16} className="text-cyan-400"/> Zero Queues</span>
+            <span className="flex items-center gap-2"><Zap size={16} className="text-purple-400"/> 45,000+ Prints This Month</span>
+            <span className="flex items-center gap-2"><Shield size={16} className="text-emerald-400"/> Military-Grade File Security</span>
+            <span>Deployed at 12 Campuses</span>
+          </motion.div>
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="bg-slate-900 text-slate-400 py-12 text-sm">
-        <div className="max-w-6xl mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-6">
-          <div className="flex items-center gap-3">
-            <img 
-              src="/WhatsApp Image 2026-09-20 at 11.39.34 PM.jpeg" 
-              alt="Arkout Logo" 
-              className="w-8 h-8 rounded-full opacity-80"
-            />
-            <span className="text-white font-semibold tracking-wide">ARKOUT</span>
-          </div>
-          <p>© {new Date().getFullYear()} Arkout Digital Printing. All rights reserved.</p>
+      {/* 3. BENTO BOX FEATURES GRID */}
+      <section className="py-32 px-6 max-w-7xl mx-auto relative z-10">
+        <div className="text-center mb-16">
+          <h2 className="text-4xl md:text-5xl font-bold tracking-tight mb-4">The Arkout Advantage</h2>
+          <p className="text-zinc-400 text-lg">Designed to eliminate friction from campus printing.</p>
         </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 auto-rows-[250px]">
+          
+          <motion.div 
+            initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.6 }}
+            className="md:col-span-2 bg-[#0A0A0A]/80 border border-white/10 rounded-[32px] p-8 relative overflow-hidden group"
+          >
+            <div className="absolute top-0 right-0 w-64 h-64 bg-purple-500/10 rounded-full blur-3xl group-hover:bg-purple-500/20 transition-colors"></div>
+            <FileText size={32} className="text-purple-400 mb-6" />
+            <h3 className="text-2xl font-bold mb-2">AI Page Optimization</h3>
+            <p className="text-zinc-400 max-w-md">Our neural engine automatically detects blank pages, calculates ink density, and guarantees you only pay for what you actually print.</p>
+          </motion.div>
+
+          <motion.div 
+            initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.6, delay: 0.1 }}
+            className="bg-[#0A0A0A]/80 border border-white/10 rounded-[32px] p-8 relative overflow-hidden group"
+          >
+            <div className="absolute -bottom-10 -right-10 w-40 h-40 bg-cyan-500/10 rounded-full blur-3xl group-hover:bg-cyan-500/20 transition-colors"></div>
+            <Smartphone size={32} className="text-cyan-400 mb-6" />
+            <h3 className="text-xl font-bold mb-2">Scan & Pay</h3>
+            <p className="text-zinc-400 text-sm">Lightning-fast QR generation compatible with GPay, PhonePe, and Paytm.</p>
+          </motion.div>
+
+          <motion.div 
+            initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.6, delay: 0.2 }}
+            className="bg-[#0A0A0A]/80 border border-white/10 rounded-[32px] p-8 relative overflow-hidden group"
+          >
+            <Cloud size={32} className="text-emerald-400 mb-6" />
+            <h3 className="text-xl font-bold mb-2">Cloud Agnostic</h3>
+            <p className="text-zinc-400 text-sm">Upload seamlessly from your local storage, WhatsApp, or Google Drive.</p>
+          </motion.div>
+
+          <motion.div 
+            initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.6, delay: 0.3 }}
+            className="md:col-span-2 bg-[#0A0A0A]/80 border border-white/10 rounded-[32px] p-8 relative overflow-hidden group"
+          >
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full bg-cyan-500/5 blur-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-700"></div>
+            <Lock size={32} className="text-zinc-300 mb-6" />
+            <h3 className="text-2xl font-bold mb-2">Zero-Trace Security</h3>
+            <p className="text-zinc-400 max-w-md">Your exams, assignments, and personal documents are automatically permanently wiped from our local hardware the exact millisecond your print is complete.</p>
+          </motion.div>
+
+        </div>
+      </section>
+
+      {/* Minimal Footer */}
+      <footer className="border-t border-white/5 py-8 text-center text-zinc-600 text-sm font-medium z-10 relative">
+        &copy; 2026 arkout.in • Engineered in Pune, India
       </footer>
-    </div>
+
+    </main>
   );
 }
