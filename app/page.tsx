@@ -2,6 +2,69 @@ import React from 'react';
 import { Printer, Shield, Zap, MapPin, Mail, MessageCircle, ArrowRight, CheckCircle2 } from 'lucide-react';
 
 export default function ArkoutLandingPage() {
+  const workflowSteps = [
+    {
+      id: 1,
+      title: "1. Connect",
+      desc: "Enter the 4-digit PIN to unlock terminal[cite: 19]",
+      img: "WhatsApp Image 2026-09-20 at 11.30.43 PM (2)_2.jpeg"
+    },
+    {
+      id: 2,
+      title: "2. Upload",
+      desc: "Drag & drop to initialize print job[cite: 18]",
+      img: "WhatsApp Image 2026-09-20 at 11.30.43 PM (1)_2.jpeg"
+    },
+    {
+      id: 3,
+      title: "3. Analyze",
+      desc: "Ready for AI Analysis & configure[cite: 20]",
+      img: "WhatsApp Image 2026-09-20 at 11.30.43 PM_2.jpeg"
+    },
+    {
+      id: 4,
+      title: "4. Configure",
+      desc: "Select ink type and print layout[cite: 23]",
+      img: "WhatsApp Image 2026-09-20 at 11.30.44 PM_2.jpeg"
+    },
+    {
+      id: 5,
+      title: "5. Review",
+      desc: "Review total pages and secure pay[cite: 21]",
+      img: "WhatsApp Image 2026-09-20 at 11.30.44 PM (1)_2.jpeg"
+    },
+    {
+      id: 6,
+      title: "6. Payment Option",
+      desc: "Select UPI or preferred payment[cite: 22]",
+      img: "WhatsApp Image 2026-09-20 at 11.30.44 PM (2)_2.jpeg"
+    },
+    {
+      id: 7,
+      title: "7. Processing",
+      desc: "Securely processing your payment[cite: 14]",
+      img: "WhatsApp Image 2026-09-20 at 11.30.41 PM_2.jpeg"
+    },
+    {
+      id: 8,
+      title: "8. Confirming",
+      desc: "Razorpay transaction confirmation[cite: 15]",
+      img: "WhatsApp Image 2026-09-20 at 11.30.42 PM (1)_2.jpeg"
+    },
+    {
+      id: 9,
+      title: "9. Success",
+      desc: "Payment verified and successful[cite: 16]",
+      img: "WhatsApp Image 2026-09-20 at 11.30.42 PM (2)_2.jpeg"
+    },
+    {
+      id: 10,
+      title: "10. Printing",
+      desc: "Hardware triggered instantly[cite: 17]",
+      img: "WhatsApp Image 2026-09-20 at 11.30.42 PM_2.jpeg"
+    }
+  ];
+
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-900 selection:bg-blue-100">
       
@@ -19,6 +82,7 @@ export default function ArkoutLandingPage() {
           </span>
         </div>
         <div className="hidden md:flex items-center gap-8 text-sm font-medium text-slate-600">
+          <a href="#how-it-works" className="hover:text-blue-600 transition-colors">How it Works</a>
           <a href="#features" className="hover:text-blue-600 transition-colors">Features</a>
           <a href="#contact" className="hover:text-blue-600 transition-colors">Contact</a>
         </div>
@@ -70,39 +134,64 @@ export default function ArkoutLandingPage() {
         </div>
       </div>
 
-      {/* Features Grid (B2B Focus) */}
-      <section id="features" className="px-6 py-24 max-w-6xl mx-auto">
+      {/* How it Works Section */}
+      <section id="how-it-works" className="px-6 py-24 max-w-6xl mx-auto">
         <div className="mb-16 text-center">
-          <h2 className="text-3xl font-bold text-slate-900 mb-4">Engineered for Institutions</h2>
-          <p className="text-slate-600 max-w-2xl mx-auto">We built Arkout to completely remove the administrative burden of campus printing facilities.</p>
+          <h2 className="text-3xl font-bold text-slate-900 mb-4">How It Works</h2>
+          <p className="text-slate-600 max-w-2xl mx-auto">Experience a fully automated printing workflow from your phone directly to paper.</p>
         </div>
-        <div className="grid md:grid-cols-3 gap-8">
-          <div className="p-8 bg-white border border-slate-200 rounded-2xl shadow-sm hover:shadow-md transition-shadow">
-            <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center mb-6">
-              <Zap className="w-6 h-6" />
+        
+        {/* Scrollable Workflow Container */}
+        <div className="flex overflow-x-auto gap-6 pb-8 snap-x snap-mandatory">
+          {workflowSteps.map((step) => (
+            <div key={step.id} className="snap-center shrink-0 w-64 bg-white rounded-2xl p-4 shadow-sm border border-slate-200 flex flex-col items-center text-center">
+              <h3 className="text-lg font-bold text-slate-900 mb-1">{step.title}</h3>
+              <p className="text-xs text-slate-500 mb-4 h-8">{step.desc}</p>
+              <img
+                src={`/${step.img}`}
+                alt={step.title}
+                className="w-full h-[450px] rounded-xl object-cover border border-slate-100 shadow-inner"
+              />
             </div>
-            <h3 className="text-xl font-bold text-slate-900 mb-3">Autonomous Operation</h3>
-            <p className="text-slate-600 leading-relaxed">
-              Hardware runs entirely on its own. No ink refill requests, no paper-jam support tickets for your staff to manage.
-            </p>
+          ))}
+        </div>
+      </section>
+
+      {/* Features Grid (B2B Focus) */}
+      <section id="features" className="px-6 py-24 bg-white border-t border-slate-200">
+        <div className="max-w-6xl mx-auto">
+          <div className="mb-16 text-center">
+            <h2 className="text-3xl font-bold text-slate-900 mb-4">Engineered for Institutions</h2>
+            <p className="text-slate-600 max-w-2xl mx-auto">We built Arkout to completely remove the administrative burden of campus printing facilities.</p>
           </div>
-          <div className="p-8 bg-white border border-slate-200 rounded-2xl shadow-sm hover:shadow-md transition-shadow">
-            <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center mb-6">
-              <Shield className="w-6 h-6" />
+          <div className="grid md:grid-cols-3 gap-8">
+            <div className="p-8 bg-slate-50 border border-slate-200 rounded-2xl shadow-sm hover:shadow-md transition-shadow">
+              <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center mb-6">
+                <Zap className="w-6 h-6" />
+              </div>
+              <h3 className="text-xl font-bold text-slate-900 mb-3">Autonomous Operation</h3>
+              <p className="text-slate-600 leading-relaxed">
+                Hardware runs entirely on its own. No ink refill requests, no paper-jam support tickets for your staff to manage.
+              </p>
             </div>
-            <h3 className="text-xl font-bold text-slate-900 mb-3">Zero-Trace Security</h3>
-            <p className="text-slate-600 leading-relaxed">
-              Documents are encrypted in transit and permanently wiped from our servers the exact millisecond printing is complete.
-            </p>
-          </div>
-          <div className="p-8 bg-white border border-slate-200 rounded-2xl shadow-sm hover:shadow-md transition-shadow">
-            <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center mb-6">
-              <Printer className="w-6 h-6" />
+            <div className="p-8 bg-slate-50 border border-slate-200 rounded-2xl shadow-sm hover:shadow-md transition-shadow">
+              <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center mb-6">
+                <Shield className="w-6 h-6" />
+              </div>
+              <h3 className="text-xl font-bold text-slate-900 mb-3">Zero-Trace Security</h3>
+              <p className="text-slate-600 leading-relaxed">
+                Documents are encrypted in transit and permanently wiped from our servers the exact millisecond printing is complete.
+              </p>
             </div>
-            <h3 className="text-xl font-bold text-slate-900 mb-3">Resource Optimization</h3>
-            <p className="text-slate-600 leading-relaxed">
-              AI automatically detects and removes blank pages, optimizing ink and paper usage while saving students money.
-            </p>
+            <div className="p-8 bg-slate-50 border border-slate-200 rounded-2xl shadow-sm hover:shadow-md transition-shadow">
+              <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center mb-6">
+                <Printer className="w-6 h-6" />
+              </div>
+              <h3 className="text-xl font-bold text-slate-900 mb-3">Resource Optimization</h3>
+              <p className="text-slate-600 leading-relaxed">
+                AI automatically detects and removes blank pages, optimizing ink and paper usage while saving students money.
+              </p>
+            </div>
           </div>
         </div>
       </section>
@@ -129,9 +218,8 @@ export default function ArkoutLandingPage() {
           </a>
 
           {/* WhatsApp Direct Link Option */}
-          {/* Replace '91XXXXXXXXXX' with your actual country code + phone number without + or spaces */}
           <a 
-            href="https://wa.me/91XXXXXXXXXX" 
+            href="https://wa.me/917758820337" 
             target="_blank" 
             rel="noopener noreferrer"
             className="flex flex-col items-center justify-center p-10 bg-slate-50 border border-slate-200 rounded-3xl hover:border-[#25D366]/30 hover:bg-[#25D366]/5 transition-all group"
