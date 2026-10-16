@@ -120,6 +120,7 @@ export default function Home() {
     setLogText("Establishing secure node bridge...");
 
     const formData = new FormData();
+    formData.append("session_id", pin);
     files.forEach((file) => formData.append("files", file));
 
     try {
