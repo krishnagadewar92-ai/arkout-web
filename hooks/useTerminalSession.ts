@@ -7,7 +7,7 @@ export function useTerminalSession(sessionId: string) {
   const router = useRouter();
 
   useEffect(() => {
-    if (!sessionId) return;
+    if (!sessionId || (sessionId.length !== 4 && sessionId.length !== 6)) return;
 
     // Keep session claims and aborts on the same API as PIN verification.
     const apiUrl = sessionId.length === 6 && sessionId.startsWith("02")
