@@ -40,7 +40,8 @@ export default function Home() {
   const [sides, setSides] = useState<'single' | 'double'>('single');
   const [margin, setMargin] = useState<'standard' | 'none'>('standard');
   const [isPaying, setIsPaying] = useState(false);
-  const [paymentIssue, setPaymentIssue] = useState<{ message: string; paymentId: string }>({ message: "", paymentId: "" });
+  const [paymentIssue, setPaymentIssue] = useState<{ message: string; paymentId: string; orderId: string; signature: string }>({ message: "", paymentId: "", orderId: "", signature: "" });
+  const [isConfirming, setIsConfirming] = useState(false);
 
   // Review States
   const [rating, setRating] = useState(0);
