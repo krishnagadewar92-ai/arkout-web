@@ -343,7 +343,7 @@ export default function Home() {
     setColorMode('bw'); setSides('single'); setMargin('standard'); 
     setBasePages(1); setCopies(1);
     setRating(0); setReviewText(""); setIsReviewSubmitted(false);
-    setPaymentIssue({ message: "", paymentId: "" });
+    setPaymentIssue({ message: "", paymentId: "", orderId: "", signature: "" });
     setApiBaseUrl("https://api.arkout.in");
   };
 
@@ -570,9 +570,18 @@ export default function Home() {
                   <p className="text-xs text-zinc-500 mb-6 max-w-md">
                     Please do not pay again until this payment has been checked.
                   </p>
-                  <button onClick={resetApp} className="px-8 py-3.5 rounded-2xl font-semibold text-xs bg-white text-black hover:bg-zinc-200 transition-all">
-                    Return to Start
-                  </button>
+                  <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                    <button
+                      onClick={retryPaymentConfirmation}
+                      disabled={isConfirming || !paymentIssue.orderId || !paymentIssue.paymentId || !paymentIssue.signature}
+                      className="px-6 py-3.5 rounded-2xl font-semibold text-xs bg-cyan-400 text-black hover:bg-cyan-300 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                    >
+                      {isConfirming ? "Checking Payment..." : "Check Payment / Print Status"}
+                    </button>
+                    <button onClick={resetApp} className="px-6 py-3.5 rounded-2xl font-semibold text-xs bg-white/10 text-white hover:bg-white/20 transition-all">
+                      Return to Start
+                    </button>
+                  </div>
                 </motion.div>
               )}
 
