@@ -285,6 +285,38 @@ export default function Home() {
     }
   };
 
+  const retryPaymentConfirmation = async () => {
+    if (!paymentIssue.orderId || !paymentIssue.paymentId || !paymentIssue.signature || isConfirming) return;
+    setIsConfirming(true);
+    try {
+      const res = await fetch(`${apiBaseUrl}/api/confirm-payment`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          razorpay_order_id: paymentIssue.orderId,
+          razorpay_payment_id: paymentIssue.paymentId,
+          razorpay_signature: paymentIssue.signature,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && ["submitted", "already_submitted"].includes(data.status)) {
+        setStep("success");
+      } else {
+        setPaymentIssue((previous) => ({
+          ...previous,
+          message: data.error || data.message || "Payment/print status is still being checked. Do not pay again; retry or contact support.",
+        }));
+      }
+    } catch {
+      setPaymentIssue((previous) => ({
+        ...previous,
+        message: "Could not reach the verification service. Do not pay again; retry verification when the connection returns.",
+      }));
+    } finally {
+      setIsConfirming(false);
+    }
+  };
+
   const handleReviewSubmit = async () => {
     setIsReviewSubmitted(true);
     try {
