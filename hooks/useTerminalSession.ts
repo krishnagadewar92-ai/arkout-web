@@ -35,6 +35,12 @@ export function useTerminalSession(sessionId: string) {
 
     // 2. The Back-Button / Tab-Close Beacon
     const handleUnload = () => {
+      // Do not invalidate an order while Razorpay/UPI is handing control back to this tab.
+      try {
+        if (sessionStorage.getItem("arkout_payment_in_progress") === "1") return;
+      } catch {
+        // If sessionStorage is unavailable, proceed with the normal cleanup beacon.
+      }
       const payload = JSON.stringify({ session_id: sessionId });
       navigator.sendBeacon(`${apiUrl}/api/abort`, payload);
     };
