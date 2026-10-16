@@ -9,10 +9,15 @@ export function useTerminalSession(sessionId: string) {
   useEffect(() => {
     if (!sessionId) return;
 
+    // Keep session claims and aborts on the same API as PIN verification.
+    const apiUrl = sessionId.length === 6 && sessionId.startsWith("02")
+      ? (process.env.NEXT_PUBLIC_TERMINAL_02_URL || "https://api2.arkout.in")
+      : "https://api.arkout.in";
+
     // 1. Claim the QR Session immediately
     const claimSession = async () => {
       try {
-        const res = await fetch('https://api.arkout.in/api/claim_session', {
+        const res = await fetch(`${apiUrl}/api/claim_session`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ session_id: sessionId })
@@ -31,7 +36,7 @@ export function useTerminalSession(sessionId: string) {
     // 2. The Back-Button / Tab-Close Beacon
     const handleUnload = () => {
       const payload = JSON.stringify({ session_id: sessionId });
-      navigator.sendBeacon('https://api.arkout.in/api/abort', payload);
+      navigator.sendBeacon(`${apiUrl}/api/abort`, payload);
     };
 
     // 2a. Pause inactivity cleanup while the page is hidden. Mobile UPI apps and
