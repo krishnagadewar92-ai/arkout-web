@@ -3,6 +3,7 @@ import { useRouter } from 'next/navigation';
 
 export function useTerminalSession(sessionId: string) {
   const [isSessionValid, setIsSessionValid] = useState(true);
+  const [isSessionClaiming, setIsSessionClaiming] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const router = useRouter();
 
@@ -15,6 +16,11 @@ export function useTerminalSession(sessionId: string) {
       : "https://api.arkout.in";
 
     // 1. Claim the QR Session immediately
+    let cancelled = false;
+    setIsSessionValid(true);
+    setIsSessionClaiming(true);
+    setErrorMessage("");
+
     const claimSession = async () => {
       try {
         const res = await fetch(`${apiUrl}/api/claim_session`, {
@@ -23,12 +29,22 @@ export function useTerminalSession(sessionId: string) {
           body: JSON.stringify({ session_id: sessionId })
         });
 
+        if (cancelled) return;
         if (res.status === 403) {
           setIsSessionValid(false);
           setErrorMessage("Someone beat you to it! Please scan the new QR on the kiosk.");
+        } else if (!res.ok) {
+          setIsSessionValid(false);
+          setErrorMessage("Could not reserve this kiosk session. Please scan the current kiosk QR code again.");
         }
       } catch (err) {
-        console.error("Failed to claim session:", err);
+        if (!cancelled) {
+          console.error("Failed to claim session:", err);
+          setIsSessionValid(false);
+          setErrorMessage("Cannot connect to the kiosk session service. Please try again.");
+        }
+      } finally {
+        if (!cancelled) setIsSessionClaiming(false);
       }
     };
     claimSession();
@@ -76,6 +92,7 @@ export function useTerminalSession(sessionId: string) {
     resetIdleTimer();
 
     return () => {
+      cancelled = true;
       window.removeEventListener('pagehide', handleUnload);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('touchstart', resetIdleTimer);
@@ -84,5 +101,5 @@ export function useTerminalSession(sessionId: string) {
     };
   }, [sessionId, router]);
 
-  return { isSessionValid, errorMessage };
+  return { isSessionValid, isSessionClaiming, errorMessage };
 }
