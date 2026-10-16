@@ -217,8 +217,10 @@ export default function Home() {
               setPaymentIssue({
                 message: confirmation.error ||
                   confirmation.message ||
-                  "We could not confirm the payment and print status. Do not pay again until support checks this payment.",
+                  "We could not confirm the payment and print status. Do not pay again; retry verification or contact support.",
                 paymentId: response.razorpay_payment_id || "",
+                orderId: response.razorpay_order_id || order.id,
+                signature: response.razorpay_signature || "",
               });
               setStep("payment_issue");
               return;
@@ -227,8 +229,10 @@ export default function Home() {
             setStep("success");
           } catch (err) {
             setPaymentIssue({
-              message: "The payment response was received, but the kiosk could not confirm the print status. Do not pay again; contact support with the payment reference.",
+              message: "The payment response was received, but the kiosk could not confirm the print status. Do not pay again; retry verification or contact support.",
               paymentId: response.razorpay_payment_id || "",
+              orderId: response.razorpay_order_id || order.id,
+              signature: response.razorpay_signature || "",
             });
             setStep("payment_issue");
           } finally {
