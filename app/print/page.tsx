@@ -43,6 +43,15 @@ export default function Home() {
   const [paymentIssue, setPaymentIssue] = useState<{ message: string; paymentId: string; orderId: string; signature: string }>({ message: "", paymentId: "", orderId: "", signature: "" });
   const [isConfirming, setIsConfirming] = useState(false);
 
+  const setPaymentHandoffFlag = (active: boolean) => {
+    try {
+      if (active) sessionStorage.setItem("arkout_payment_in_progress", "1");
+      else sessionStorage.removeItem("arkout_payment_in_progress");
+    } catch {
+      // Payment verification still runs server-side if browser storage is unavailable.
+    }
+  };
+
   // Review States
   const [rating, setRating] = useState(0);
   const [hoveredStar, setHoveredStar] = useState(0);
@@ -188,6 +197,7 @@ export default function Home() {
         throw new Error("The server price differs from the displayed price. Please restart and calculate again.");
       }
 
+      let paymentCallbackReceived = false;
       const options = {
         key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
         amount: order.amount,
@@ -196,6 +206,8 @@ export default function Home() {
         description: `Secure Print - ${totalPages} Pages`,
         order_id: order.id,
         handler: async function (response: any) {
+          paymentCallbackReceived = true;
+          setPaymentHandoffFlag(true);
           // Never submit a print directly from the browser. The backend verifies
           // the Razorpay signature and captured status, then submits the stored job once.
           try {
@@ -237,12 +249,14 @@ export default function Home() {
             setStep("payment_issue");
           } finally {
             setIsPaying(false);
+            setPaymentHandoffFlag(false);
           }
         },
         prefill: { name: "Arkout User", contact: "9999999999" },
         theme: { color: "#000000" },
         modal: {
           ondismiss: function () {
+            if (!paymentCallbackReceived) setPaymentHandoffFlag(false);
             setIsPaying(false);
             fetch(`${apiBaseUrl}/api/set-state`, {
               method: "POST",
@@ -263,6 +277,7 @@ export default function Home() {
       }).catch(() => {});
 
       rzp.on("payment.failed", function (response: any) {
+        setPaymentHandoffFlag(false);
         const description = response?.error?.description || "Payment failed.";
         alert("Payment Failed: " + description);
         setIsPaying(false);
@@ -273,8 +288,10 @@ export default function Home() {
         }).catch(() => {});
       });
 
+      setPaymentHandoffFlag(true);
       rzp.open();
     } catch (err) {
+      setPaymentHandoffFlag(false);
       alert(err instanceof Error ? err.message : "Gateway error.");
       setIsPaying(false);
       fetch(`${apiBaseUrl}/api/set-state`, {
@@ -288,6 +305,7 @@ export default function Home() {
   const retryPaymentConfirmation = async () => {
     if (!paymentIssue.orderId || !paymentIssue.paymentId || !paymentIssue.signature || isConfirming) return;
     setIsConfirming(true);
+    setPaymentHandoffFlag(true);
     try {
       const res = await fetch(`${apiBaseUrl}/api/confirm-payment`, {
         method: "POST",
@@ -314,6 +332,7 @@ export default function Home() {
       }));
     } finally {
       setIsConfirming(false);
+      setPaymentHandoffFlag(false);
     }
   };
 
@@ -334,6 +353,7 @@ export default function Home() {
   };
 
   const resetApp = async () => {
+    setPaymentHandoffFlag(false);
     try {
       await fetch(`${apiBaseUrl}/api/abort`, { method: "POST", body: JSON.stringify({ session_id: pin }) });
     } catch (e) { console.error("Abort failed"); }
