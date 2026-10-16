@@ -24,6 +24,7 @@ const loadRazorpay = () => {
 export default function Home() {
   const [step, setStep] = useState<AppStep>('verify');
   const [pin, setPin] = useState("");
+  const [verifiedSessionPin, setVerifiedSessionPin] = useState("");
   const [pinError, setPinError] = useState("");
   const [isVerifying, setIsVerifying] = useState(false);
   
@@ -58,7 +59,7 @@ export default function Home() {
   const [reviewText, setReviewText] = useState("");
   const [isReviewSubmitted, setIsReviewSubmitted] = useState(false);
 
-  const { isSessionValid, errorMessage } = useTerminalSession(pin);
+  const { isSessionValid, errorMessage } = useTerminalSession(verifiedSessionPin);
 
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -109,7 +110,21 @@ export default function Home() {
         body: JSON.stringify({ pin: pinToVerify }),
       });
       if (response.ok) {
-        setStep('upload');
+        // Claim the session only after the entire PIN has been verified by its terminal.
+        const claimResponse = await fetch(`${targetUrl}/api/claim_session`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ session_id: pinToVerify }),
+        });
+        const claimData = await claimResponse.json().catch(() => ({}));
+        if (claimResponse.ok) {
+          setVerifiedSessionPin(pinToVerify);
+          setStep("upload");
+        } else {
+          setPinError(
+            claimData.error || "This kiosk session is already in use. Please scan the current QR code again."
+          );
+        }
       } else {
         setPinError("Invalid PIN. Check the kiosk screen.");
       }
@@ -208,6 +223,7 @@ export default function Home() {
         handler: async function (response: any) {
           paymentCallbackReceived = true;
           setPaymentHandoffFlag(true);
+          let paymentConfirmed = false;
           // Never submit a print directly from the browser. The backend verifies
           // the Razorpay signature and captured status, then submits the stored job once.
           try {
@@ -238,6 +254,7 @@ export default function Home() {
               return;
             }
 
+            paymentConfirmed = true;
             setStep("success");
           } catch (err) {
             setPaymentIssue({
@@ -249,7 +266,8 @@ export default function Home() {
             setStep("payment_issue");
           } finally {
             setIsPaying(false);
-            setPaymentHandoffFlag(false);
+            // Keep the session alive on ambiguous outcomes so the same payment can be retried.
+            if (paymentConfirmed) setPaymentHandoffFlag(false);
           }
         },
         prefill: { name: "Arkout User", contact: "9999999999" },
@@ -318,6 +336,7 @@ export default function Home() {
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok && ["submitted", "already_submitted"].includes(data.status)) {
+        setPaymentHandoffFlag(false);
         setStep("success");
       } else {
         setPaymentIssue((previous) => ({
@@ -354,6 +373,7 @@ export default function Home() {
 
   const resetApp = async () => {
     setPaymentHandoffFlag(false);
+    setVerifiedSessionPin("");
     try {
       await fetch(`${apiBaseUrl}/api/abort`, { method: "POST", body: JSON.stringify({ session_id: pin }) });
     } catch (e) { console.error("Abort failed"); }
@@ -598,9 +618,11 @@ export default function Home() {
                     >
                       {isConfirming ? "Checking Payment..." : "Check Payment / Print Status"}
                     </button>
-                    <button onClick={resetApp} className="px-6 py-3.5 rounded-2xl font-semibold text-xs bg-white/10 text-white hover:bg-white/20 transition-all">
-                      Return to Start
-                    </button>
+                    {!paymentIssue.orderId && !paymentIssue.paymentId && !paymentIssue.signature && (
+                      <button onClick={resetApp} className="px-6 py-3.5 rounded-2xl font-semibold text-xs bg-white/10 text-white hover:bg-white/20 transition-all">
+                        Return to Start
+                      </button>
+                    )}
                   </div>
                 </motion.div>
               )}
