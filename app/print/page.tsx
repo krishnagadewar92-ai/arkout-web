@@ -9,7 +9,7 @@ import {
 import Image from "next/image";
 import { useTerminalSession } from "../../hooks/useTerminalSession"; 
 
-type AppStep = 'verify' | 'upload' | 'processing' | 'checkout' | 'success';
+type AppStep = 'verify' | 'upload' | 'processing' | 'checkout' | 'success' | 'payment_issue';
 
 const loadRazorpay = () => {
   return new Promise((resolve) => {
@@ -40,6 +40,7 @@ export default function Home() {
   const [sides, setSides] = useState<'single' | 'double'>('single');
   const [margin, setMargin] = useState<'standard' | 'none'>('standard');
   const [isPaying, setIsPaying] = useState(false);
+  const [paymentIssue, setPaymentIssue] = useState<{ message: string; paymentId: string }>({ message: "", paymentId: "" });
 
   // Review States
   const [rating, setRating] = useState(0);
@@ -150,70 +151,131 @@ export default function Home() {
   };
 
   const handlePayment = async () => {
+    if (uploadedFilenames.length === 0) {
+      alert("Upload your documents again before paying.");
+      return;
+    }
+
     setIsPaying(true);
     const isLoaded = await loadRazorpay();
     if (!isLoaded) {
       alert("Failed to load payment gateway.");
-      setIsPaying(false); return;
+      setIsPaying(false);
+      return;
     }
 
     try {
+      // The server derives price from its own files/config, not from a client-supplied amount.
       const orderRes = await fetch(`${apiBaseUrl}/api/create-order`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ amount: currentPrice }),
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          session_id: pin,
+          filenames: uploadedFilenames,
+          config: { colorMode, sides, margin, copies },
+        }),
       });
-      const order = await orderRes.json();
-      if (!order.id) throw new Error("Order creation failed");
+
+      const order = await orderRes.json().catch(() => ({}));
+      if (!orderRes.ok || !order.id) {
+        throw new Error(order.error || order.message || "Order creation failed");
+      }
+
+      // Refuse checkout if the server's authoritative price does not match the on-screen quote.
+      if (Number(order.amount) !== Math.round(currentPrice * 100)) {
+        throw new Error("The server price differs from the displayed price. Please restart and calculate again.");
+      }
 
       const options = {
-        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID, 
-        amount: order.amount, currency: order.currency,
-        name: "Arkout Print Hub", description: `Secure Print - ${totalPages} Pages`,
+        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
+        amount: order.amount,
+        currency: order.currency,
+        name: "Arkout Print Hub",
+        description: `Secure Print - ${totalPages} Pages`,
         order_id: order.id,
         handler: async function (response: any) {
-          setStep('success'); setIsPaying(false);
+          // Never submit a print directly from the browser. The backend verifies
+          // the Razorpay signature and captured status, then submits the stored job once.
           try {
-            for (const serverFilename of uploadedFilenames) {
-                await fetch(`${apiBaseUrl}/api/trigger-print`, {
-                  method: "POST", headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ filename: serverFilename, config: { colorMode, sides, margin, copies } }), 
-                });
+            const verifyRes = await fetch(`${apiBaseUrl}/api/confirm-payment`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                razorpay_order_id: response.razorpay_order_id || order.id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature,
+              }),
+            });
+
+            const confirmation = await verifyRes.json().catch(() => ({}));
+            if (
+              !verifyRes.ok ||
+              !["submitted", "already_submitted"].includes(confirmation.status)
+            ) {
+              setPaymentIssue({
+                message: confirmation.error ||
+                  confirmation.message ||
+                  "We could not confirm the payment and print status. Do not pay again until support checks this payment.",
+                paymentId: response.razorpay_payment_id || "",
+              });
+              setStep("payment_issue");
+              return;
             }
-          } catch (err) { console.error("Hardware trigger failed", err); }
+
+            setStep("success");
+          } catch (err) {
+            setPaymentIssue({
+              message: "The payment response was received, but the kiosk could not confirm the print status. Do not pay again; contact support with the payment reference.",
+              paymentId: response.razorpay_payment_id || "",
+            });
+            setStep("payment_issue");
+          } finally {
+            setIsPaying(false);
+          }
         },
-        prefill: { name: "Arkout User", contact: "9999999999" }, theme: { color: "#000000" },
-        
-        // Handles the user manually closing the Razorpay window
+        prefill: { name: "Arkout User", contact: "9999999999" },
+        theme: { color: "#000000" },
         modal: {
-            ondismiss: function() {
-                setIsPaying(false); 
-                fetch(`${apiBaseUrl}/api/set-state`, {
-                    method: "POST", headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ status: "processing" })
-                }).catch(() => {});
-            }
-        }
+          ondismiss: function () {
+            setIsPaying(false);
+            fetch(`${apiBaseUrl}/api/set-state`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ status: "processing" }),
+            }).catch(() => {});
+          },
+        },
       };
+
       const rzp = new (window as any).Razorpay(options);
-      
-      // Tell the Kiosk to show "Confirming Payment" right before the paywall opens
+
+      // Update the kiosk status for the customer-facing screen; not used as proof of payment.
       fetch(`${apiBaseUrl}/api/set-state`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "payment" })
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "payment" }),
       }).catch(() => {});
 
       rzp.on("payment.failed", function (response: any) {
-        alert("Payment Failed: " + response.error.description);
+        const description = response?.error?.description || "Payment failed.";
+        alert("Payment Failed: " + description);
         setIsPaying(false);
         fetch(`${apiBaseUrl}/api/set-state`, {
-            method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ status: "processing" })
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: "processing" }),
         }).catch(() => {});
       });
 
       rzp.open();
     } catch (err) {
-      alert("Gateway error."); setIsPaying(false);
+      alert(err instanceof Error ? err.message : "Gateway error.");
+      setIsPaying(false);
+      fetch(`${apiBaseUrl}/api/set-state`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "processing" }),
+      }).catch(() => {});
     }
   };
 
@@ -243,6 +305,7 @@ export default function Home() {
     setColorMode('bw'); setSides('single'); setMargin('standard'); 
     setBasePages(1); setCopies(1);
     setRating(0); setReviewText(""); setIsReviewSubmitted(false);
+    setPaymentIssue({ message: "", paymentId: "" });
     setApiBaseUrl("https://api.arkout.in");
   };
 
@@ -455,6 +518,26 @@ export default function Home() {
                 </motion.div>
               )}
 
+              {/* PAYMENT VERIFICATION / PRINT STATUS NEEDS REVIEW */}
+              {step === 'payment_issue' && (
+                <motion.div key="payment_issue" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="flex flex-col items-center w-full my-auto py-6 text-center">
+                  <XCircle size={48} className="text-amber-400 mb-4" />
+                  <h2 className="text-xl font-semibold tracking-tight mb-2">Payment Needs Review</h2>
+                  <p className="text-sm text-zinc-300 mb-4 max-w-md">{paymentIssue.message}</p>
+                  {paymentIssue.paymentId && (
+                    <p className="text-xs text-zinc-500 mb-6 break-all">
+                      Payment reference: <span className="font-mono text-zinc-300">{paymentIssue.paymentId}</span>
+                    </p>
+                  )}
+                  <p className="text-xs text-zinc-500 mb-6 max-w-md">
+                    Please do not pay again until this payment has been checked.
+                  </p>
+                  <button onClick={resetApp} className="px-8 py-3.5 rounded-2xl font-semibold text-xs bg-white text-black hover:bg-zinc-200 transition-all">
+                    Return to Start
+                  </button>
+                </motion.div>
+              )}
+
               {/* STEP 4: SUCCESS & RATING */}
               {step === 'success' && (
                 <motion.div key="success" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="flex flex-col items-center w-full my-auto py-4">
@@ -462,7 +545,7 @@ export default function Home() {
                     <Check size={28} />
                   </div>
                   <h2 className="text-xl font-semibold tracking-tight mb-1">Payment Confirmed</h2>
-                  <p className="text-xs text-zinc-400 mb-6 text-center">Hardware triggered successfully. Collecting your prints...</p>
+                  <p className="text-xs text-zinc-400 mb-6 text-center">Payment verified by the server. Your print job was accepted for submission.</p>
 
                   {/* Rating Component */}
                   {!isReviewSubmitted ? (
