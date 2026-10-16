@@ -34,20 +34,31 @@ export function useTerminalSession(sessionId: string) {
       navigator.sendBeacon('https://api.arkout.in/api/abort', payload);
     };
 
-    window.addEventListener('pagehide', handleUnload);
-    window.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'hidden') handleUnload();
-    });
-
-    // 3. The 90-Second Idle Auto-Nuke
-    let idleTimer: NodeJS.Timeout;
+    // 2a. Pause inactivity cleanup while the page is hidden. Mobile UPI apps and
+    // payment overlays can hide the page without ending the customer's session.
+    let idleTimer: ReturnType<typeof setTimeout> | undefined;
     const resetIdleTimer = () => {
-      clearTimeout(idleTimer);
+      if (idleTimer) clearTimeout(idleTimer);
+      idleTimer = undefined;
+      if (document.visibilityState === 'hidden') return;
       idleTimer = setTimeout(() => {
         handleUnload();
         router.push('/'); // Redirect them out if they are idle
-      }, 90000); // 90 seconds of inactivity
+      }, 90000); // 90 seconds of visible-page inactivity
     };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        if (idleTimer) clearTimeout(idleTimer);
+        idleTimer = undefined;
+      } else {
+        resetIdleTimer();
+      }
+    };
+
+    window.addEventListener('pagehide', handleUnload);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    // 3. The 90-Second Idle Auto-Nuke
 
     window.addEventListener('touchstart', resetIdleTimer);
     window.addEventListener('click', resetIdleTimer);
@@ -55,7 +66,7 @@ export function useTerminalSession(sessionId: string) {
 
     return () => {
       window.removeEventListener('pagehide', handleUnload);
-      window.removeEventListener('visibilitychange', handleUnload);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('touchstart', resetIdleTimer);
       window.removeEventListener('click', resetIdleTimer);
       clearTimeout(idleTimer);
