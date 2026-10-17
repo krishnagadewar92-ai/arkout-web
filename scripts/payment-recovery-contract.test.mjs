@@ -78,3 +78,11 @@ test("session cleanup and admin controls never fall back to live endpoints in pr
   assert.match(adminSource, /const API_BASE = getAdminApiBaseUrl\(\)/);
   assert.ok((adminSource.match(/if \(!API_BASE\)/g) || []).length >= 4);
 });
+
+
+test("payment and recovery handlers refuse to issue requests when no endpoint is approved", () => {
+  assert.match(source, /if \(!apiBaseUrl \|\| !paymentIssue\.orderId \|\| !paymentIssue\.paymentId \|\| !paymentIssue\.signature \|\| isConfirming\) return/);
+  assert.match(source, /if \(!apiBaseUrl \|\| !paymentIssue\.orderId \|\| !pin \|\| !sessionToken \|\| isReconciling\) return/);
+  assert.match(source, /if \(!apiBaseUrl \|\| !resumableOrder \|\| !paymentIssue\.orderId \|\| isReconciling \|\| isPaying\) return/);
+  assert.match(source, /disabled=\{isConfirming \|\| !apiBaseUrl\}/);
+});
