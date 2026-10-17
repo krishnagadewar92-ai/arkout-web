@@ -183,7 +183,7 @@ export default function Home() {
     // checkout again while an earlier order has an unresolved payment outcome.
     const recovery = readStoredPaymentRecovery();
     if (recovery) {
-      setApiBaseUrl(recovery.apiUrl || "https://api.arkout.in");
+      setApiBaseUrl(recovery.apiUrl);
       setPin(recovery.sessionId);
       setSessionToken(recovery.sessionToken);
       const recoveryIssue = recovery.apiUrl
