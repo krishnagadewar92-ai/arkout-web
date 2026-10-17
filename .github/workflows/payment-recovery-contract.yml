@@ -20,5 +20,13 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Install project dependencies
+        run: npm ci
+      - name: Install Playwright test runner
+        run: npm install --no-save @playwright/test
+      - name: Install Chromium for isolated browser tests
+        run: npx playwright install --with-deps chromium
       - name: Verify frontend/backend contract wiring
         run: node --test scripts/payment-recovery-contract.test.mjs
+      - name: Run mock-only payment recovery browser tests
+        run: npx playwright test --config=e2e/playwright.config.mjs
