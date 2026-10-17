@@ -30,7 +30,13 @@ export function useTerminalSession(sessionId: string) {
       // Razorpay/UPI can temporarily hide the page; don't abort while payment
       // confirmation is pending or might need retry.
       if (paymentHandoffInProgress()) return;
-      const payload = JSON.stringify({ session_id: sessionId });
+      let sessionToken = "";
+      try {
+        sessionToken = sessionStorage.getItem("arkout_session_token") || "";
+      } catch {
+        // The server rejects cleanup requests without a valid session token.
+      }
+      const payload = JSON.stringify({ session_id: sessionId, session_token: sessionToken });
       navigator.sendBeacon(`${apiUrl}/api/abort`, payload);
     };
 
