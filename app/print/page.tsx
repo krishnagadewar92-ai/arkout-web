@@ -7,7 +7,8 @@ import {
   Palette, Layers, Maximize, Lock, XCircle, Copy, Plus, Minus, Sparkles, Star
 } from "lucide-react";
 import Image from "next/image";
-import { useTerminalSession } from "../../hooks/useTerminalSession"; 
+import { useTerminalSession } from "../../hooks/useTerminalSession";
+import { getTerminalApiBaseUrl, validateRecoveryApiBaseUrl } from "../../lib/api-config"; 
 
 type AppStep = 'verify' | 'upload' | 'processing' | 'checkout' | 'success' | 'payment_issue';
 
@@ -91,7 +92,7 @@ function readStoredPaymentRecovery(): StoredPaymentRecovery | null {
           },
           sessionId: saved.sessionId,
           sessionToken: saved.sessionToken,
-          apiUrl: saved.apiUrl,
+          apiUrl: validateRecoveryApiBaseUrl(saved.sessionId, saved.apiUrl),
         };
       }
     }
@@ -114,7 +115,7 @@ function readStoredPaymentRecovery(): StoredPaymentRecovery | null {
           },
           sessionId: saved.sessionId,
           sessionToken: saved.sessionToken,
-          apiUrl: saved.apiUrl,
+          apiUrl: validateRecoveryApiBaseUrl(saved.sessionId, saved.apiUrl),
         };
       }
     }
@@ -142,7 +143,7 @@ export default function Home() {
   const [pinError, setPinError] = useState("");
   const [isVerifying, setIsVerifying] = useState(false);
   
-  const [apiBaseUrl, setApiBaseUrl] = useState("https://api.arkout.in");
+  const [apiBaseUrl, setApiBaseUrl] = useState("");
 
   const [files, setFiles] = useState<File[]>([]);
   const [uploadedFilenames, setUploadedFilenames] = useState<string[]>([]); 
@@ -185,7 +186,13 @@ export default function Home() {
       setApiBaseUrl(recovery.apiUrl || "https://api.arkout.in");
       setPin(recovery.sessionId);
       setSessionToken(recovery.sessionToken);
-      setPaymentIssue(recovery.issue);
+      const recoveryIssue = recovery.apiUrl
+        ? recovery.issue
+        : {
+            ...recovery.issue,
+            message: `${recovery.issue.message} This preview is not configured to contact the saved payment endpoint. Do not pay again; return to the original kiosk or contact support.`,
+          };
+      setPaymentIssue(recoveryIssue);
       setPaymentHandoffFlag(true);
       setStep("payment_issue");
       return;
@@ -228,13 +235,17 @@ export default function Home() {
     setIsVerifying(true);
     setPinError("");
     
-    let targetUrl = "https://api.arkout.in"; 
-    if (pinToVerify.length === 6 && pinToVerify.startsWith("02")) {
-        targetUrl = process.env.NEXT_PUBLIC_TERMINAL_02_URL || "https://api2.arkout.in";
-    } else if (pinToVerify.length !== 4) {
-        setPinError("Invalid PIN format.");
-        setIsVerifying(false);
-        return;
+    if (pinToVerify.length !== 4 && !(pinToVerify.length === 6 && pinToVerify.startsWith("02"))) {
+      setPinError("Invalid PIN format.");
+      setIsVerifying(false);
+      return;
+    }
+
+    const targetUrl = getTerminalApiBaseUrl(pinToVerify);
+    if (!targetUrl) {
+      setPinError("This preview has no isolated backend configured. Checkout is disabled for safety.");
+      setIsVerifying(false);
+      return;
     }
 
     setApiBaseUrl(targetUrl);
@@ -1026,7 +1037,7 @@ export default function Home() {
                       <div className="flex flex-col items-center gap-3">
                         <button
                           onClick={reconcileExistingOrder}
-                          disabled={isReconciling}
+                          disabled={isReconciling || !apiBaseUrl}
                           className="px-6 py-3.5 rounded-2xl font-semibold text-xs bg-cyan-400 text-black hover:bg-cyan-300 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
                         >
                           {isReconciling ? "Checking Existing Order..." : "Check Existing Order Status"}
@@ -1034,7 +1045,7 @@ export default function Home() {
                         {resumableOrder && (
                           <button
                             onClick={resumeExistingOrder}
-                            disabled={isReconciling || isPaying}
+                            disabled={isReconciling || isPaying || !apiBaseUrl}
                             className="px-6 py-3.5 rounded-2xl font-semibold text-xs bg-white text-black hover:bg-zinc-200 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
                           >
                             {isReconciling || isPaying ? "Rechecking Existing Order..." : "Resume Payment for This Order"}
