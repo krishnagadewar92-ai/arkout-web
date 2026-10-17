@@ -11,6 +11,112 @@ import { useTerminalSession } from "../../hooks/useTerminalSession";
 
 type AppStep = 'verify' | 'upload' | 'processing' | 'checkout' | 'success' | 'payment_issue';
 
+type PaymentIssueDetails = {
+  message: string;
+  paymentId: string;
+  orderId: string;
+  signature: string;
+};
+
+type StoredPaymentRecovery = {
+  issue: PaymentIssueDetails;
+  sessionId: string;
+  sessionToken: string;
+  apiUrl: string;
+};
+
+const PENDING_PAYMENT_KEY = "arkout_pending_payment";
+const PENDING_ORDER_KEY = "arkout_pending_order";
+
+// Store an order as soon as checkout opens. If the browser is refreshed before
+// Razorpay returns a payment ID/signature, the next page load must not offer a
+// second payment until this original order has been reconciled.
+function persistPendingOrderRecovery(orderId: string, sessionId: string, sessionToken: string, apiUrl: string) {
+  try {
+    sessionStorage.setItem(PENDING_ORDER_KEY, JSON.stringify({
+      orderId, sessionId, sessionToken, apiUrl, createdAt: Date.now(),
+    }));
+  } catch {
+    // If browser storage is unavailable, server-side payment idempotency remains essential.
+  }
+}
+
+function persistPendingPaymentRecovery(issue: PaymentIssueDetails, sessionId: string, sessionToken: string, apiUrl: string) {
+  try {
+    sessionStorage.setItem(PENDING_PAYMENT_KEY, JSON.stringify({
+      ...issue, sessionId, sessionToken, apiUrl, createdAt: Date.now(),
+    }));
+    sessionStorage.removeItem(PENDING_ORDER_KEY);
+  } catch {
+    // Keep the order marker whenever possible rather than silently losing recovery state.
+  }
+}
+
+function clearPendingOrderRecovery() {
+  try { sessionStorage.removeItem(PENDING_ORDER_KEY); } catch {}
+}
+
+function clearStoredPaymentRecovery() {
+  try {
+    sessionStorage.removeItem(PENDING_PAYMENT_KEY);
+    sessionStorage.removeItem(PENDING_ORDER_KEY);
+  } catch {}
+}
+
+function readStoredPaymentRecovery(): StoredPaymentRecovery | null {
+  try {
+    const paymentRaw = sessionStorage.getItem(PENDING_PAYMENT_KEY);
+    if (paymentRaw) {
+      const saved = JSON.parse(paymentRaw);
+      if (
+        saved && typeof saved.orderId === "string" && saved.orderId.length > 0 &&
+        typeof saved.sessionId === "string" &&
+        typeof saved.sessionToken === "string" &&
+        typeof saved.apiUrl === "string"
+      ) {
+        return {
+          issue: {
+            message: typeof saved.message === "string" ? saved.message :
+              "A previous payment needs verification. Do not pay again until its status is confirmed.",
+            paymentId: typeof saved.paymentId === "string" ? saved.paymentId : "",
+            orderId: saved.orderId,
+            signature: typeof saved.signature === "string" ? saved.signature : "",
+          },
+          sessionId: saved.sessionId,
+          sessionToken: saved.sessionToken,
+          apiUrl: saved.apiUrl,
+        };
+      }
+    }
+
+    const orderRaw = sessionStorage.getItem(PENDING_ORDER_KEY);
+    if (orderRaw) {
+      const saved = JSON.parse(orderRaw);
+      if (
+        saved && typeof saved.orderId === "string" && saved.orderId.length > 0 &&
+        typeof saved.sessionId === "string" &&
+        typeof saved.sessionToken === "string" &&
+        typeof saved.apiUrl === "string"
+      ) {
+        return {
+          issue: {
+            message: "The payment window closed or refreshed before this browser received the payment result. Do not pay again. This order must be checked before another payment attempt.",
+            paymentId: "",
+            orderId: saved.orderId,
+            signature: "",
+          },
+          sessionId: saved.sessionId,
+          sessionToken: saved.sessionToken,
+          apiUrl: saved.apiUrl,
+        };
+      }
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
 const loadRazorpay = () => {
   return new Promise((resolve) => {
     const script = document.createElement("script");
@@ -42,7 +148,7 @@ export default function Home() {
   const [sides, setSides] = useState<'single' | 'double'>('single');
   const [margin, setMargin] = useState<'standard' | 'none'>('standard');
   const [isPaying, setIsPaying] = useState(false);
-  const [paymentIssue, setPaymentIssue] = useState<{ message: string; paymentId: string; orderId: string; signature: string }>({ message: "", paymentId: "", orderId: "", signature: "" });
+  const [paymentIssue, setPaymentIssue] = useState<PaymentIssueDetails>({ message: "", paymentId: "", orderId: "", signature: "" });
   const [isConfirming, setIsConfirming] = useState(false);
 
   const setPaymentHandoffFlag = (active: boolean) => {
@@ -63,11 +169,31 @@ export default function Home() {
   const { isSessionValid, errorMessage } = useTerminalSession(verifiedSessionPin);
 
   useEffect(() => {
+    // Payment recovery takes priority over starting a new session. Never show
+    // checkout again while an earlier order has an unresolved payment outcome.
+    const recovery = readStoredPaymentRecovery();
+    if (recovery) {
+      setApiBaseUrl(recovery.apiUrl || "https://api.arkout.in");
+      setPin(recovery.sessionId);
+      setSessionToken(recovery.sessionToken);
+      setPaymentIssue(recovery.issue);
+      setPaymentHandoffFlag(true);
+      setStep("payment_issue");
+      return;
+    }
+
     const urlParams = new URLSearchParams(window.location.search);
     const urlPin = urlParams.get('pin');
-    if (urlPin) {
-      setPin(urlPin);
-      verifyTerminalPin(urlPin);
+    let savedPin = "";
+    let savedToken = "";
+    try {
+      savedPin = sessionStorage.getItem("arkout_session_pin") || "";
+      savedToken = sessionStorage.getItem("arkout_session_token") || "";
+    } catch {}
+    const pinToResume = urlPin || (savedToken.length >= 32 ? savedPin : "");
+    if (pinToResume) {
+      setPin(pinToResume);
+      verifyTerminalPin(pinToResume);
     }
   }, []);
 
@@ -243,6 +369,16 @@ export default function Home() {
         order_id: order.id,
         handler: async function (response: any) {
           paymentCallbackReceived = true;
+          const initialIssue: PaymentIssueDetails = {
+            message: "Payment response received. The server is checking payment and print status. Do not pay again.",
+            paymentId: response.razorpay_payment_id || "",
+            orderId: response.razorpay_order_id || order.id,
+            signature: response.razorpay_signature || "",
+          };
+          // Persist the callback synchronously before starting network verification,
+          // so a refresh/network failure can recover the same payment attempt.
+          persistPendingPaymentRecovery(initialIssue, pin, sessionToken, apiBaseUrl);
+          setPaymentIssue(initialIssue);
           setPaymentHandoffFlag(true);
           let paymentConfirmed = false;
           // Never submit a print directly from the browser. The backend verifies
@@ -252,9 +388,9 @@ export default function Home() {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
-                razorpay_order_id: response.razorpay_order_id || order.id,
-                razorpay_payment_id: response.razorpay_payment_id,
-                razorpay_signature: response.razorpay_signature,
+                razorpay_order_id: initialIssue.orderId,
+                razorpay_payment_id: initialIssue.paymentId,
+                razorpay_signature: initialIssue.signature,
               }),
             });
 
@@ -263,27 +399,32 @@ export default function Home() {
               !verifyRes.ok ||
               !["submitted", "already_submitted"].includes(confirmation.status)
             ) {
-              setPaymentIssue({
+              const issue: PaymentIssueDetails = {
                 message: confirmation.error ||
                   confirmation.message ||
                   "We could not confirm the payment and print status. Do not pay again; retry verification or contact support.",
-                paymentId: response.razorpay_payment_id || "",
-                orderId: response.razorpay_order_id || order.id,
-                signature: response.razorpay_signature || "",
-              });
+                paymentId: initialIssue.paymentId,
+                orderId: initialIssue.orderId,
+                signature: initialIssue.signature,
+              };
+              setPaymentIssue(issue);
+              persistPendingPaymentRecovery(issue, pin, sessionToken, apiBaseUrl);
               setStep("payment_issue");
               return;
             }
 
             paymentConfirmed = true;
+            clearStoredPaymentRecovery();
             setStep("success");
           } catch (err) {
-            setPaymentIssue({
+            const issue: PaymentIssueDetails = {
               message: "The payment response was received, but the kiosk could not confirm the print status. Do not pay again; retry verification or contact support.",
-              paymentId: response.razorpay_payment_id || "",
-              orderId: response.razorpay_order_id || order.id,
-              signature: response.razorpay_signature || "",
-            });
+              paymentId: initialIssue.paymentId,
+              orderId: initialIssue.orderId,
+              signature: initialIssue.signature,
+            };
+            setPaymentIssue(issue);
+            persistPendingPaymentRecovery(issue, pin, sessionToken, apiBaseUrl);
             setStep("payment_issue");
           } finally {
             setIsPaying(false);
@@ -295,7 +436,18 @@ export default function Home() {
         theme: { color: "#000000" },
         modal: {
           ondismiss: function () {
-            if (!paymentCallbackReceived) setPaymentHandoffFlag(false);
+            if (!paymentCallbackReceived) {
+              const issue: PaymentIssueDetails = {
+                message: "The payment window was closed before the browser received a result. Do not pay again until the existing order has been checked.",
+                paymentId: "",
+                orderId: order.id,
+                signature: "",
+              };
+              persistPendingOrderRecovery(order.id, pin, sessionToken, apiBaseUrl);
+              setPaymentIssue(issue);
+              setStep("payment_issue");
+              setPaymentHandoffFlag(true);
+            }
             setIsPaying(false);
             fetch(`${apiBaseUrl}/api/set-state`, {
               method: "POST",
@@ -316,6 +468,7 @@ export default function Home() {
       }).catch(() => {});
 
       rzp.on("payment.failed", function (response: any) {
+        clearStoredPaymentRecovery();
         setPaymentHandoffFlag(false);
         const description = response?.error?.description || "Payment failed.";
         alert("Payment Failed: " + description);
@@ -327,9 +480,11 @@ export default function Home() {
         }).catch(() => {});
       });
 
+      persistPendingOrderRecovery(order.id, pin, sessionToken, apiBaseUrl);
       setPaymentHandoffFlag(true);
       rzp.open();
     } catch (err) {
+      clearStoredPaymentRecovery();
       setPaymentHandoffFlag(false);
       alert(err instanceof Error ? err.message : "Gateway error.");
       setIsPaying(false);
@@ -357,19 +512,24 @@ export default function Home() {
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok && ["submitted", "already_submitted"].includes(data.status)) {
+        clearStoredPaymentRecovery();
         setPaymentHandoffFlag(false);
         setStep("success");
       } else {
-        setPaymentIssue((previous) => ({
-          ...previous,
+        const issue: PaymentIssueDetails = {
+          ...paymentIssue,
           message: data.error || data.message || "Payment/print status is still being checked. Do not pay again; retry or contact support.",
-        }));
+        };
+        setPaymentIssue(issue);
+        persistPendingPaymentRecovery(issue, pin, sessionToken, apiBaseUrl);
       }
     } catch {
-      setPaymentIssue((previous) => ({
-        ...previous,
+      const issue: PaymentIssueDetails = {
+        ...paymentIssue,
         message: "Could not reach the verification service. Do not pay again; retry verification when the connection returns.",
-      }));
+      };
+      setPaymentIssue(issue);
+      persistPendingPaymentRecovery(issue, pin, sessionToken, apiBaseUrl);
     } finally {
       setIsConfirming(false);
       // Keep the session reserved if verification is still ambiguous; only a
@@ -394,6 +554,7 @@ export default function Home() {
   };
 
   const resetApp = async () => {
+    clearStoredPaymentRecovery();
     setPaymentHandoffFlag(false);
     setVerifiedSessionPin("");
     setSessionToken("");
@@ -627,21 +788,33 @@ export default function Home() {
                   <h2 className="text-xl font-semibold tracking-tight mb-2">Payment Needs Review</h2>
                   <p className="text-sm text-zinc-300 mb-4 max-w-md">{paymentIssue.message}</p>
                   {paymentIssue.paymentId && (
-                    <p className="text-xs text-zinc-500 mb-6 break-all">
+                    <p className="text-xs text-zinc-500 mb-3 break-all">
                       Payment reference: <span className="font-mono text-zinc-300">{paymentIssue.paymentId}</span>
+                    </p>
+                  )}
+                  {paymentIssue.orderId && (
+                    <p className="text-xs text-zinc-500 mb-6 break-all">
+                      Order reference: <span className="font-mono text-zinc-300">{paymentIssue.orderId}</span>
                     </p>
                   )}
                   <p className="text-xs text-zinc-500 mb-6 max-w-md">
                     Please do not pay again until this payment has been checked.
                   </p>
                   <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                    <button
-                      onClick={retryPaymentConfirmation}
-                      disabled={isConfirming || !paymentIssue.orderId || !paymentIssue.paymentId || !paymentIssue.signature}
-                      className="px-6 py-3.5 rounded-2xl font-semibold text-xs bg-cyan-400 text-black hover:bg-cyan-300 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
-                    >
-                      {isConfirming ? "Checking Payment..." : "Check Payment / Print Status"}
-                    </button>
+                    {paymentIssue.orderId && paymentIssue.paymentId && paymentIssue.signature && (
+                      <button
+                        onClick={retryPaymentConfirmation}
+                        disabled={isConfirming}
+                        className="px-6 py-3.5 rounded-2xl font-semibold text-xs bg-cyan-400 text-black hover:bg-cyan-300 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                      >
+                        {isConfirming ? "Checking Payment..." : "Check Payment / Print Status"}
+                      </button>
+                    )}
+                    {paymentIssue.orderId && (!paymentIssue.paymentId || !paymentIssue.signature) && (
+                      <p className="text-xs text-amber-300 max-w-md">
+                        This order cannot be verified from the browser alone because the payment response is missing. Contact Arkout support with the order reference above; do not pay again.
+                      </p>
+                    )}
                     {!paymentIssue.orderId && !paymentIssue.paymentId && !paymentIssue.signature && (
                       <button onClick={resetApp} className="px-6 py-3.5 rounded-2xl font-semibold text-xs bg-white/10 text-white hover:bg-white/20 transition-all">
                         Return to Start
