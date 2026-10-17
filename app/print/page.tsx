@@ -24,6 +24,7 @@ const loadRazorpay = () => {
 export default function Home() {
   const [step, setStep] = useState<AppStep>('verify');
   const [pin, setPin] = useState("");
+  const [sessionToken, setSessionToken] = useState("");
   const [verifiedSessionPin, setVerifiedSessionPin] = useState("");
   const [pinError, setPinError] = useState("");
   const [isVerifying, setIsVerifying] = useState(false);
@@ -110,20 +111,38 @@ export default function Home() {
         body: JSON.stringify({ pin: pinToVerify }),
       });
       if (response.ok) {
-        // Claim the session only after the entire PIN has been verified by its terminal.
-        const claimResponse = await fetch(`${targetUrl}/api/claim_session`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ session_id: pinToVerify }),
-        });
-        const claimData = await claimResponse.json().catch(() => ({}));
-        if (claimResponse.ok) {
+        // On a same-tab refresh, reuse the session token already issued to this browser.
+        let savedPin = "";
+        let savedToken = "";
+        try {
+          savedPin = sessionStorage.getItem("arkout_session_pin") || "";
+          savedToken = sessionStorage.getItem("arkout_session_token") || "";
+        } catch {}
+        if (savedPin === pinToVerify && savedToken.length >= 32) {
+          setSessionToken(savedToken);
           setVerifiedSessionPin(pinToVerify);
           setStep("upload");
         } else {
-          setPinError(
-            claimData.error || "This kiosk session is already in use. Please scan the current QR code again."
-          );
+          // Claim the session only after the entire PIN has been verified by its terminal.
+          const claimResponse = await fetch(`${targetUrl}/api/claim_session`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ session_id: pinToVerify }),
+          });
+          const claimData = await claimResponse.json().catch(() => ({}));
+          if (claimResponse.ok && typeof claimData.session_token === "string" && claimData.session_token.length >= 32) {
+            setSessionToken(claimData.session_token);
+            setVerifiedSessionPin(pinToVerify);
+            try {
+              sessionStorage.setItem("arkout_session_pin", pinToVerify);
+              sessionStorage.setItem("arkout_session_token", claimData.session_token);
+            } catch {}
+            setStep("upload");
+          } else {
+            setPinError(
+              claimData.error || "This kiosk session is already in use. Please scan the current QR code again."
+            );
+          }
         }
       } else {
         setPinError("Invalid PIN. Check the kiosk screen.");
@@ -146,6 +165,7 @@ export default function Home() {
 
     const formData = new FormData();
     formData.append("session_id", pin);
+    formData.append("session_token", sessionToken);
     files.forEach((file) => formData.append("files", file));
 
     try {
@@ -197,6 +217,7 @@ export default function Home() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           session_id: pin,
+          session_token: sessionToken,
           filenames: uploadedFilenames,
           config: { colorMode, sides, margin, copies },
         }),
@@ -279,7 +300,7 @@ export default function Home() {
             fetch(`${apiBaseUrl}/api/set-state`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ status: "processing" }),
+              body: JSON.stringify({ status: "processing", session_id: pin, session_token: sessionToken }),
             }).catch(() => {});
           },
         },
@@ -291,7 +312,7 @@ export default function Home() {
       fetch(`${apiBaseUrl}/api/set-state`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "payment" }),
+        body: JSON.stringify({ status: "payment", session_id: pin, session_token: sessionToken }),
       }).catch(() => {});
 
       rzp.on("payment.failed", function (response: any) {
@@ -302,7 +323,7 @@ export default function Home() {
         fetch(`${apiBaseUrl}/api/set-state`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ status: "processing" }),
+          body: JSON.stringify({ status: "processing", session_id: pin, session_token: sessionToken }),
         }).catch(() => {});
       });
 
@@ -315,7 +336,7 @@ export default function Home() {
       fetch(`${apiBaseUrl}/api/set-state`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "processing" }),
+        body: JSON.stringify({ status: "processing", session_id: pin, session_token: sessionToken }),
       }).catch(() => {});
     }
   };
@@ -375,8 +396,10 @@ export default function Home() {
   const resetApp = async () => {
     setPaymentHandoffFlag(false);
     setVerifiedSessionPin("");
+    setSessionToken("");
+    try { sessionStorage.removeItem("arkout_session_pin"); sessionStorage.removeItem("arkout_session_token"); } catch {}
     try {
-      await fetch(`${apiBaseUrl}/api/abort`, { method: "POST", body: JSON.stringify({ session_id: pin }) });
+      await fetch(`${apiBaseUrl}/api/abort`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ session_id: pin, session_token: sessionToken }) });
     } catch (e) { console.error("Abort failed"); }
 
     setFiles([]); setUploadedFilenames([]);
