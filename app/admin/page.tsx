@@ -34,12 +34,12 @@ export default function AdminFleetDashboard() {
   const [loginError, setLoginError] = useState("");
 
   // --- TELEMETRY STATE ---
-  const [telemetry, setTelemetry] = useState<KioskTelemetry null |>(null);
+  const [telemetry, setTelemetry] = useState<KioskTelemetry | null>(null);
   const [loading, setLoading] = useState(false);
   const [actionMessage, setActionMessage] = useState("");
 
   // --- MARKETING AD STATE ---
-  const [adFile, setAdFile] = useState<File null |>(null);
+  const [adFile, setAdFile] = useState<File | null>(null);
   const [adUploading, setAdUploading] = useState(false);
 
   // Authenticate Owner / Handler
