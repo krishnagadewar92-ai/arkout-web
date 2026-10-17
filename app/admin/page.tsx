@@ -2,8 +2,11 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 
-// Configuration - Pointing to your live Cloudflare tunnel endpoint
-const API_BASE = process.env.NEXT_PUBLIC_KIOSK_API || "https://api.arkout.in";
+import { getAdminApiBaseUrl } from "../../lib/api-config";
+
+// Preview builds must use an explicit preview endpoint; the helper returns
+// an empty URL if no isolated endpoint is configured, disabling admin requests.
+const API_BASE = getAdminApiBaseUrl();
 
 interface PrinterData {
   name: string;
@@ -58,6 +61,10 @@ export default function AdminFleetDashboard() {
 
   // Fetch Telemetry from Raspberry Pi Backend
   const fetchStatus = useCallback(async () => {
+    if (!API_BASE) {
+      setActionMessage("No isolated backend is configured for this preview. Admin requests are disabled.");
+      return;
+    }
     const token = sessionStorage.getItem("arkout_admin_token") || adminToken;
     try {
       const res = await fetch(`${API_BASE}/api/status`, {
@@ -92,6 +99,10 @@ export default function AdminFleetDashboard() {
 
   // Action: Toggle Maintenance Mode
   const toggleMaintenance = async (enable: boolean) => {
+    if (!API_BASE) {
+      setActionMessage("No isolated backend is configured for this preview. Maintenance changes are disabled.");
+      return;
+    }
     const token = sessionStorage.getItem("arkout_admin_token");
     setLoading(true);
     try {
@@ -117,6 +128,10 @@ export default function AdminFleetDashboard() {
 
   // Action: Refill Paper Stock
   const handlePaperRefill = async (tray: "color" | "bw") => {
+    if (!API_BASE) {
+      setActionMessage("No isolated backend is configured for this preview. Paper inventory changes are disabled.");
+      return;
+    }
     const token = sessionStorage.getItem("arkout_admin_token");
     try {
       const res = await fetch(`${API_BASE}/api/admin/paper/refill`, {
@@ -140,6 +155,10 @@ export default function AdminFleetDashboard() {
   const handleAdUpload = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!adFile) return;
+    if (!API_BASE) {
+      setActionMessage("No isolated backend is configured for this preview. Advertisement deployment is disabled.");
+      return;
+    }
     const token = sessionStorage.getItem("arkout_admin_token");
     setAdUploading(true);
     setActionMessage("Setting kiosk to maintenance and deploying ad...");
