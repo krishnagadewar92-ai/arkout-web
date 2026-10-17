@@ -37,7 +37,7 @@ export function useTerminalSession(sessionId: string) {
         // The server rejects cleanup requests without a valid session token.
       }
       const payload = JSON.stringify({ session_id: sessionId, session_token: sessionToken });
-      navigator.sendBeacon(`${apiUrl}/api/abort`, payload);
+      navigator.sendBeacon(`${apiUrl}/api/abort`, new Blob([payload], { type: "application/json" }));
     };
 
     let idleTimer: ReturnType<typeof setTimeout> | undefined;
