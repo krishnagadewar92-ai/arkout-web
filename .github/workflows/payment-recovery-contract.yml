@@ -1,0 +1,24 @@
+name: Payment recovery contract checks
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [fix/server-verified-payments]
+
+permissions:
+  contents: read
+
+jobs:
+  payment-recovery-contract:
+    name: Payment recovery contract
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Verify frontend/backend contract wiring
+        run: node --test scripts/payment-recovery-contract.test.mjs
