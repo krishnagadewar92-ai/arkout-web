@@ -150,6 +150,7 @@ export default function Home() {
   const [isPaying, setIsPaying] = useState(false);
   const [paymentIssue, setPaymentIssue] = useState<PaymentIssueDetails>({ message: "", paymentId: "", orderId: "", signature: "" });
   const [isConfirming, setIsConfirming] = useState(false);
+  const [isReconciling, setIsReconciling] = useState(false);
 
   const setPaymentHandoffFlag = (active: boolean) => {
     try {
@@ -537,6 +538,54 @@ export default function Home() {
     }
   };
 
+  const reconcileExistingOrder = async () => {
+    if (!paymentIssue.orderId || !pin || !sessionToken || isReconciling) return;
+    setIsReconciling(true);
+    setPaymentHandoffFlag(true);
+    try {
+      const res = await fetch(`${apiBaseUrl}/api/payment-status`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          razorpay_order_id: paymentIssue.orderId,
+          session_id: pin,
+          session_token: sessionToken,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+
+      // Only the server's explicit submitted status can end recovery successfully.
+      // This endpoint never submits a print; all other states remain pending/review.
+      if (res.ok && data.status === "submitted") {
+        clearStoredPaymentRecovery();
+        setPaymentHandoffFlag(false);
+        setStep("success");
+        return;
+      }
+
+      const issue: PaymentIssueDetails = {
+        ...paymentIssue,
+        paymentId: typeof data.razorpay_payment_id === "string" && data.razorpay_payment_id
+          ? data.razorpay_payment_id
+          : paymentIssue.paymentId,
+        message: data.message || data.error ||
+          "The existing order could not be reconciled yet. Do not pay again; check again later or contact support.",
+      };
+      setPaymentIssue(issue);
+      persistPendingPaymentRecovery(issue, pin, sessionToken, apiBaseUrl);
+    } catch {
+      const issue: PaymentIssueDetails = {
+        ...paymentIssue,
+        message: "Could not reach the order-status service. Do not pay again; retry checking the existing order when the connection returns.",
+      };
+      setPaymentIssue(issue);
+      persistPendingPaymentRecovery(issue, pin, sessionToken, apiBaseUrl);
+    } finally {
+      setIsReconciling(false);
+      // Keep payment handoff active until server confirms an already-submitted job.
+    }
+  };
+
   const handleReviewSubmit = async () => {
     setIsReviewSubmitted(true);
     try {
@@ -811,9 +860,18 @@ export default function Home() {
                       </button>
                     )}
                     {paymentIssue.orderId && (!paymentIssue.paymentId || !paymentIssue.signature) && (
-                      <p className="text-xs text-amber-300 max-w-md">
-                        This order cannot be verified from the browser alone because the payment response is missing. Contact Arkout support with the order reference above; do not pay again.
-                      </p>
+                      <div className="flex flex-col items-center gap-3">
+                        <button
+                          onClick={reconcileExistingOrder}
+                          disabled={isReconciling}
+                          className="px-6 py-3.5 rounded-2xl font-semibold text-xs bg-cyan-400 text-black hover:bg-cyan-300 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                        >
+                          {isReconciling ? "Checking Existing Order..." : "Check Existing Order Status"}
+                        </button>
+                        <p className="text-xs text-amber-300 max-w-md">
+                          This checks the existing Razorpay order only. It will not create another payment or trigger printing. If a payment was captured but its confirmation was lost, support review may be required.
+                        </p>
+                      </div>
                     )}
                     {!paymentIssue.orderId && !paymentIssue.paymentId && !paymentIssue.signature && (
                       <button onClick={resetApp} className="px-6 py-3.5 rounded-2xl font-semibold text-xs bg-white/10 text-white hover:bg-white/20 transition-all">
