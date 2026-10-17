@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { getTerminalApiBaseUrl } from '../lib/api-config';
 
 export function useTerminalSession(sessionId: string) {
   const [isSessionValid, setIsSessionValid] = useState(true);
@@ -11,9 +12,9 @@ export function useTerminalSession(sessionId: string) {
     // This hook only manages lifecycle cleanup for that verified session.
     if (!sessionId || (sessionId.length !== 4 && sessionId.length !== 6)) return;
 
-    const apiUrl = sessionId.length === 6 && sessionId.startsWith("02")
-      ? (process.env.NEXT_PUBLIC_TERMINAL_02_URL || "https://api2.arkout.in")
-      : "https://api.arkout.in";
+    const apiUrl = getTerminalApiBaseUrl(sessionId);
+    // Fail closed if this deployment has no approved API endpoint.
+    if (!apiUrl) return;
 
     setIsSessionValid(true);
     setErrorMessage("");
