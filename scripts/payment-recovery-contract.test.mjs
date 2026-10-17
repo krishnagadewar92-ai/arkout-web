@@ -2,7 +2,12 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-const source = await readFile(new URL("../app/print/page.tsx", import.meta.url), "utf8");
+const [source, apiConfig, lifecycleHook, adminSource] = await Promise.all([
+  readFile(new URL("../app/print/page.tsx", import.meta.url), "utf8"),
+  readFile(new URL("../lib/api-config.ts", import.meta.url), "utf8"),
+  readFile(new URL("../hooks/useTerminalSession.ts", import.meta.url), "utf8"),
+  readFile(new URL("../app/admin/page.tsx", import.meta.url), "utf8"),
+]);
 
 test("frontend does not submit print jobs through the legacy direct-print endpoint", () => {
   assert.doesNotMatch(source, /\/api\/trigger-print/);
@@ -54,4 +59,22 @@ test("ambiguous outcomes persist recovery details and warn against paying again"
   assert.match(source, /Do not pay again/);
   assert.match(source, /persistPendingPaymentRecovery\(issue, pin, sessionToken, apiBaseUrl\)/);
   assert.match(source, /persistPendingOrderRecovery\(order\.id, pin, sessionToken, apiBaseUrl\)/);
+});
+
+
+test("preview builds use explicit non-production endpoints and fail closed if not configured", () => {
+  assert.match(apiConfig, /NEXT_PUBLIC_DEPLOYMENT_STAGE === "preview"/);
+  assert.match(apiConfig, /NEXT_PUBLIC_PREVIEW_API_URL/);
+  assert.match(apiConfig, /NEXT_PUBLIC_PREVIEW_TERMINAL_02_API_URL/);
+  assert.match(apiConfig, /NEXT_PUBLIC_PREVIEW_KIOSK_API_URL/);
+  assert.match(apiConfig, /if \(!expectedUrl \|\| !candidateUrl \|\| candidateUrl !== expectedUrl\) return ""/);
+  assert.match(source, /const targetUrl = getTerminalApiBaseUrl\(pinToVerify\)/);
+  assert.match(source, /if \(!targetUrl\)[\s\S]*Checkout is disabled for safety/);
+});
+
+test("session cleanup and admin controls never fall back to live endpoints in preview", () => {
+  assert.match(lifecycleHook, /getTerminalApiBaseUrl\(sessionId\)/);
+  assert.match(lifecycleHook, /if \(!apiUrl\) return/);
+  assert.match(adminSource, /const API_BASE = getAdminApiBaseUrl\(\)/);
+  assert.ok((adminSource.match(/if \(!API_BASE\)/g) || []).length >= 4);
 });
