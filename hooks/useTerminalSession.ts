@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { getTerminalApiBaseUrl } from '../lib/api-config';
 
 export function useTerminalSession(sessionId: string) {
   const [isSessionValid, setIsSessionValid] = useState(true);
@@ -7,58 +8,77 @@ export function useTerminalSession(sessionId: string) {
   const router = useRouter();
 
   useEffect(() => {
-    if (!sessionId) return;
+    // Session claims are made explicitly only after /api/verify-pin succeeds.
+    // This hook only manages lifecycle cleanup for that verified session.
+    if (!sessionId || (sessionId.length !== 4 && sessionId.length !== 6)) return;
 
-    // 1. Claim the QR Session immediately
-    const claimSession = async () => {
+    const apiUrl = getTerminalApiBaseUrl(sessionId);
+    // Fail closed if this deployment has no approved API endpoint.
+    if (!apiUrl) return;
+
+    setIsSessionValid(true);
+    setErrorMessage("");
+
+    const paymentHandoffInProgress = () => {
       try {
-        const res = await fetch('https://api.arkout.in/api/claim_session', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ session_id: sessionId })
-        });
-
-        if (res.status === 403) {
-          setIsSessionValid(false);
-          setErrorMessage("Someone beat you to it! Please scan the new QR on the kiosk.");
-        }
-      } catch (err) {
-        console.error("Failed to claim session:", err);
+        return sessionStorage.getItem("arkout_payment_in_progress") === "1";
+      } catch {
+        return false;
       }
     };
-    claimSession();
 
-    // 2. The Back-Button / Tab-Close Beacon
     const handleUnload = () => {
-      const payload = JSON.stringify({ session_id: sessionId });
-      navigator.sendBeacon('https://api.arkout.in/api/abort', payload);
+      // Razorpay/UPI can temporarily hide the page; don't abort while payment
+      // confirmation is pending or might need retry.
+      if (paymentHandoffInProgress()) return;
+      let sessionToken = "";
+      try {
+        sessionToken = sessionStorage.getItem("arkout_session_token") || "";
+      } catch {
+        // The server rejects cleanup requests without a valid session token.
+      }
+      const payload = JSON.stringify({ session_id: sessionId, session_token: sessionToken });
+      navigator.sendBeacon(`${apiUrl}/api/abort`, new Blob([payload], { type: "application/json" }));
     };
 
-    window.addEventListener('pagehide', handleUnload);
-    window.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'hidden') handleUnload();
-    });
-
-    // 3. The 90-Second Idle Auto-Nuke
-    let idleTimer: NodeJS.Timeout;
+    let idleTimer: ReturnType<typeof setTimeout> | undefined;
     const resetIdleTimer = () => {
-      clearTimeout(idleTimer);
+      if (idleTimer) clearTimeout(idleTimer);
+      idleTimer = undefined;
+      if (document.visibilityState === "hidden") return;
+
       idleTimer = setTimeout(() => {
+        if (paymentHandoffInProgress()) {
+          // Keep recovery possible if the payment callback/verification is delayed.
+          resetIdleTimer();
+          return;
+        }
         handleUnload();
-        router.push('/'); // Redirect them out if they are idle
-      }, 90000); // 90 seconds of inactivity
+        router.push("/");
+      }, 90000);
     };
 
-    window.addEventListener('touchstart', resetIdleTimer);
-    window.addEventListener('click', resetIdleTimer);
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "hidden") {
+        if (idleTimer) clearTimeout(idleTimer);
+        idleTimer = undefined;
+      } else {
+        resetIdleTimer();
+      }
+    };
+
+    window.addEventListener("pagehide", handleUnload);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("touchstart", resetIdleTimer);
+    window.addEventListener("click", resetIdleTimer);
     resetIdleTimer();
 
     return () => {
-      window.removeEventListener('pagehide', handleUnload);
-      window.removeEventListener('visibilitychange', handleUnload);
-      window.removeEventListener('touchstart', resetIdleTimer);
-      window.removeEventListener('click', resetIdleTimer);
-      clearTimeout(idleTimer);
+      window.removeEventListener("pagehide", handleUnload);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("touchstart", resetIdleTimer);
+      window.removeEventListener("click", resetIdleTimer);
+      if (idleTimer) clearTimeout(idleTimer);
     };
   }, [sessionId, router]);
 
