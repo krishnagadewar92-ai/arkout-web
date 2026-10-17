@@ -960,7 +960,7 @@ export default function Home() {
                     </div>
 
                     <div className="space-y-2 pt-4">
-                      <button onClick={handlePayment} disabled={isPaying || totalPages > 30} className="w-full py-4 rounded-2xl font-semibold text-sm bg-white text-black hover:bg-zinc-200 transition-all shadow-lg flex justify-center items-center gap-2">
+                      <button onClick={() => handlePayment()} disabled={isPaying || totalPages > 30} className="w-full py-4 rounded-2xl font-semibold text-sm bg-white text-black hover:bg-zinc-200 transition-all shadow-lg flex justify-center items-center gap-2">
                         {isPaying ? <span>Authorizing...</span> : <><span>Pay via UPI / Card</span> <ChevronRight size={16} /></>}
                       </button>
                       <button onClick={resetApp} className="w-full py-2 text-zinc-500 text-xs hover:text-red-400 transition-colors">Cancel Session</button>
