@@ -17,8 +17,8 @@ const eligibleResponse = {
   message: "No captured or unresolved payment attempt was found. You may resume checkout for this same order.",
 };
 
-async function openRecoveryPage(page, paymentStatusResponse) {
-  const calls = { paymentStatus: 0, createOrder: 0, confirmPayment: 0, triggerPrint: 0 };
+async function openRecoveryPage(page, paymentStatusResponse, confirmResponses = null) {
+  const calls = { paymentStatus: 0, createOrder: 0, confirmPayment: 0, confirmPayloads: [], triggerPrint: 0 };
 
   await page.addInitScript(({ orderId, sessionId, sessionToken, apiUrl }) => {
     sessionStorage.setItem("arkout_pending_order", JSON.stringify({
@@ -63,11 +63,15 @@ async function openRecoveryPage(page, paymentStatusResponse) {
     }
     if (url.pathname === "/api/confirm-payment") {
       calls.confirmPayment += 1;
+      calls.confirmPayloads.push(request.postDataJSON());
+      const configuredResponse = Array.isArray(confirmResponses) && confirmResponses.length > 0
+        ? confirmResponses[Math.min(calls.confirmPayment - 1, confirmResponses.length - 1)]
+        : { httpStatus: 200, body: { status: "submitted", order_id: ORDER_ID, job_ids: ["mock-job-1"] } };
       await route.fulfill({
-        status: 200,
+        status: configuredResponse.httpStatus,
         contentType: "application/json",
         headers: corsHeaders,
-        body: JSON.stringify({ status: "submitted", order_id: ORDER_ID, job_ids: ["mock-job-1"] }),
+        body: JSON.stringify(configuredResponse.body),
       });
       return;
     }
@@ -196,6 +200,46 @@ test("an already-submitted order goes to success without opening checkout again"
   await page.getByRole("button", { name: "Check Existing Order Status" }).click();
   await expect(page.getByRole("heading", { name: "Payment Confirmed" })).toBeVisible();
   expect(calls.paymentStatus).toBe(1);
+  expect(calls.createOrder).toBe(0);
+  expect(calls.triggerPrint).toBe(0);
+});
+
+
+test("temporary confirmation failure retries the same payment reference without creating another order", async ({ page }) => {
+  const confirmationResponses = [
+    { httpStatus: 503, body: { error: "Payment status temporarily unavailable. Do not pay again." } },
+    { httpStatus: 200, body: { status: "submitted", order_id: ORDER_ID, job_ids: ["mock-job-1"] } },
+  ];
+  const calls = await openRecoveryPage(page, eligibleResponse, confirmationResponses);
+
+  await page.getByRole("button", { name: "Check Existing Order Status" }).click();
+  await page.getByRole("button", { name: "Resume Payment for This Order" }).click();
+  await expect.poll(() => page.evaluate(() => window.__arkoutRazorpayOpenCount)).toBe(1);
+
+  await page.evaluate(async () => {
+    await window.__arkoutRazorpayOptions.handler({
+      razorpay_order_id: "order_mock_recovery_123",
+      razorpay_payment_id: "pay_mock_retry_456",
+      razorpay_signature: "mock-signature-for-test-only",
+    });
+  });
+  await expect(page.getByRole("heading", { name: "Payment Needs Review" })).toBeVisible();
+  await page.getByRole("button", { name: "Check Payment / Print Status" }).click();
+  await expect(page.getByRole("heading", { name: "Payment Confirmed" })).toBeVisible();
+
+  expect(calls.confirmPayment).toBe(2);
+  expect(calls.confirmPayloads).toEqual([
+    {
+      razorpay_order_id: "order_mock_recovery_123",
+      razorpay_payment_id: "pay_mock_retry_456",
+      razorpay_signature: "mock-signature-for-test-only",
+    },
+    {
+      razorpay_order_id: "order_mock_recovery_123",
+      razorpay_payment_id: "pay_mock_retry_456",
+      razorpay_signature: "mock-signature-for-test-only",
+    },
+  ]);
   expect(calls.createOrder).toBe(0);
   expect(calls.triggerPrint).toBe(0);
 });
