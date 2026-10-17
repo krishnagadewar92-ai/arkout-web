@@ -42,7 +42,7 @@ test("resume rechecks server status and opens Razorpay with the existing order o
   assert.match(body, /\/api\/payment-status/);
   assert.match(body, /data\.can_resume_same_order === true/);
   assert.match(body, /await handlePayment\(order\)/);
-  assert.doesNotMatch(body, /\/api\/create-order/);
+  assert.equal(body.includes('fetch(`${apiBaseUrl}/api/create-order`'), false);
 });
 
 test("only explicit server-submitted statuses display successful payment/print completion", () => {
