@@ -17,22 +17,33 @@ const eligibleResponse = {
   message: "No captured or unresolved payment attempt was found. You may resume checkout for this same order.",
 };
 
-async function openRecoveryPage(page, paymentStatusResponse, confirmResponses = null, storedApiUrl = API_ORIGIN) {
+async function openRecoveryPage(page, paymentStatusResponse, confirmResponses = null, storedApiUrl = API_ORIGIN, storedPayment = null) {
   const calls = { paymentStatus: 0, createOrder: 0, confirmPayment: 0, confirmPayloads: [], triggerPrint: 0 };
 
-  await page.addInitScript(({ orderId, sessionId, sessionToken, apiUrl }) => {
-    sessionStorage.setItem("arkout_pending_order", JSON.stringify({
-      orderId,
-      sessionId,
-      sessionToken,
-      apiUrl,
-      createdAt: Date.now(),
-    }));
+  await page.addInitScript(({ orderId, sessionId, sessionToken, apiUrl, payment }) => {
+    if (payment) {
+      sessionStorage.setItem("arkout_pending_payment", JSON.stringify({
+        ...payment,
+        sessionId,
+        sessionToken,
+        apiUrl,
+        createdAt: Date.now(),
+      }));
+    } else {
+      sessionStorage.setItem("arkout_pending_order", JSON.stringify({
+        orderId,
+        sessionId,
+        sessionToken,
+        apiUrl,
+        createdAt: Date.now(),
+      }));
+    }
   }, {
     orderId: ORDER_ID,
     sessionId: SESSION_ID,
     sessionToken: SESSION_TOKEN,
     apiUrl: storedApiUrl,
+    payment: storedPayment,
   });
 
   await page.route("https://api-staging.invalid/**", async (route) => {
@@ -256,6 +267,38 @@ test("preview refuses a stored live API URL and makes no live request", async ({
   await expect(page.getByText(/not configured to contact the saved payment endpoint/i)).toBeVisible();
   await expect(page.getByRole("button", { name: "Check Existing Order Status" })).toBeDisabled();
   await expect(page.getByRole("button", { name: "Resume Payment for This Order" })).toHaveCount(0);
+
+  expect(calls.paymentStatus).toBe(0);
+  expect(calls.confirmPayment).toBe(0);
+  expect(calls.createOrder).toBe(0);
+  expect(calls.triggerPrint).toBe(0);
+  expect(liveApiRequestCount).toBe(0);
+});
+
+
+test("preview disables payment-confirmation retry for a stale live recovery URL", async ({ page }) => {
+  let liveApiRequestCount = 0;
+  await page.route("https://api.arkout.in/**", async (route) => {
+    liveApiRequestCount += 1;
+    await route.abort();
+  });
+
+  const storedPayment = {
+    message: "A previous payment response needs verification.",
+    paymentId: "pay_stale_live_123",
+    orderId: ORDER_ID,
+    signature: "stale-signature-for-test-only",
+  };
+  const calls = await openRecoveryPage(
+    page,
+    eligibleResponse,
+    null,
+    "https://api.arkout.in",
+    storedPayment,
+  );
+
+  await expect(page.getByText(/not configured to contact the saved payment endpoint/i)).toBeVisible();
+  await expect(page.getByRole("button", { name: "Check Payment / Print Status" })).toBeDisabled();
 
   expect(calls.paymentStatus).toBe(0);
   expect(calls.confirmPayment).toBe(0);
