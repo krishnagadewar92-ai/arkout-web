@@ -1,8 +1,8 @@
 import { test, expect } from "@playwright/test";
 
-const API_ORIGIN = "https://api.arkout.in";
+const API_ORIGIN = "https://api-staging.invalid";
 const ORDER_ID = "order_mock_recovery_123";
-const SESSION_ID = "020123";
+const SESSION_ID = "1234";
 const SESSION_TOKEN = "mock-session-token-0123456789abcdef0123456789abcdef";
 
 const eligibleResponse = {
@@ -35,7 +35,7 @@ async function openRecoveryPage(page, paymentStatusResponse, confirmResponses = 
     apiUrl: API_ORIGIN,
   });
 
-  await page.route("https://api.arkout.in/**", async (route) => {
+  await page.route("https://api-staging.invalid/**", async (route) => {
     const request = route.request();
     const url = new URL(request.url());
     const origin = request.headers().origin || "http://127.0.0.1:3000";
