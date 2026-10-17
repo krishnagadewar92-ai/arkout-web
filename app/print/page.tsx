@@ -25,6 +25,12 @@ type StoredPaymentRecovery = {
   apiUrl: string;
 };
 
+type ExistingRazorpayOrder = {
+  id: string;
+  amount: number;
+  currency: string;
+};
+
 const PENDING_PAYMENT_KEY = "arkout_pending_payment";
 const PENDING_ORDER_KEY = "arkout_pending_order";
 
@@ -33,6 +39,7 @@ const PENDING_ORDER_KEY = "arkout_pending_order";
 // second payment until this original order has been reconciled.
 function persistPendingOrderRecovery(orderId: string, sessionId: string, sessionToken: string, apiUrl: string) {
   try {
+    sessionStorage.removeItem(PENDING_PAYMENT_KEY);
     sessionStorage.setItem(PENDING_ORDER_KEY, JSON.stringify({
       orderId, sessionId, sessionToken, apiUrl, createdAt: Date.now(),
     }));
@@ -151,6 +158,7 @@ export default function Home() {
   const [paymentIssue, setPaymentIssue] = useState<PaymentIssueDetails>({ message: "", paymentId: "", orderId: "", signature: "" });
   const [isConfirming, setIsConfirming] = useState(false);
   const [isReconciling, setIsReconciling] = useState(false);
+  const [resumableOrder, setResumableOrder] = useState<ExistingRazorpayOrder | null>(null);
 
   const setPaymentHandoffFlag = (active: boolean) => {
     try {
@@ -323,8 +331,8 @@ export default function Home() {
     }
   };
 
-  const handlePayment = async () => {
-    if (uploadedFilenames.length === 0) {
+  const handlePayment = async (existingOrder?: ExistingRazorpayOrder) => {
+    if (!existingOrder && uploadedFilenames.length === 0) {
       alert("Upload your documents again before paying.");
       return;
     }
@@ -338,26 +346,49 @@ export default function Home() {
     }
 
     try {
-      // The server derives price from its own files/config, not from a client-supplied amount.
-      const orderRes = await fetch(`${apiBaseUrl}/api/create-order`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          session_id: pin,
-          session_token: sessionToken,
-          filenames: uploadedFilenames,
-          config: { colorMode, sides, margin, copies },
-        }),
-      });
+      let order: ExistingRazorpayOrder;
+      if (existingOrder) {
+        // Reuse only the exact order positively re-authorized by a fresh
+        // /api/payment-status response. Do not call create-order for recovery.
+        if (
+          existingOrder.id !== paymentIssue.orderId ||
+          !Number.isSafeInteger(existingOrder.amount) ||
+          existingOrder.amount <= 0 ||
+          existingOrder.currency !== "INR"
+        ) {
+          throw new Error("The existing order could not be safely resumed. Check its status again.");
+        }
+        order = existingOrder;
+      } else {
+        // The server derives price from its own files/config, not from a client-supplied amount.
+        const orderRes = await fetch(`${apiBaseUrl}/api/create-order`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            session_id: pin,
+            session_token: sessionToken,
+            filenames: uploadedFilenames,
+            config: { colorMode, sides, margin, copies },
+          }),
+        });
 
-      const order = await orderRes.json().catch(() => ({}));
-      if (!orderRes.ok || !order.id) {
-        throw new Error(order.error || order.message || "Order creation failed");
-      }
+        const orderData = await orderRes.json().catch(() => ({}));
+        if (!orderRes.ok || !orderData.id) {
+          throw new Error(orderData.error || orderData.message || "Order creation failed");
+        }
 
-      // Refuse checkout if the server's authoritative price does not match the on-screen quote.
-      if (Number(order.amount) !== Math.round(currentPrice * 100)) {
-        throw new Error("The server price differs from the displayed price. Please restart and calculate again.");
+        // Refuse checkout if the server's authoritative price differs from the displayed quote.
+        if (Number(orderData.amount) !== Math.round(currentPrice * 100)) {
+          throw new Error("The server price differs from the displayed price. Please restart and calculate again.");
+        }
+        order = {
+          id: String(orderData.id),
+          amount: Number(orderData.amount),
+          currency: String(orderData.currency || ""),
+        };
+        if (!Number.isSafeInteger(order.amount) || order.amount <= 0 || order.currency !== "INR") {
+          throw new Error("The server returned an invalid order amount or currency.");
+        }
       }
 
       let paymentCallbackReceived = false;
@@ -366,10 +397,11 @@ export default function Home() {
         amount: order.amount,
         currency: order.currency,
         name: "Arkout Print Hub",
-        description: `Secure Print - ${totalPages} Pages`,
+        description: existingOrder ? "Secure Print - existing order retry" : `Secure Print - ${totalPages} Pages`,
         order_id: order.id,
         handler: async function (response: any) {
           paymentCallbackReceived = true;
+          setResumableOrder(null);
           const initialIssue: PaymentIssueDetails = {
             message: "Payment response received. The server is checking payment and print status. Do not pay again.",
             paymentId: response.razorpay_payment_id || "",
@@ -469,10 +501,19 @@ export default function Home() {
       }).catch(() => {});
 
       rzp.on("payment.failed", function (response: any) {
-        clearStoredPaymentRecovery();
-        setPaymentHandoffFlag(false);
-        const description = response?.error?.description || "Payment failed.";
-        alert("Payment Failed: " + description);
+        paymentCallbackReceived = true;
+        setResumableOrder(null);
+        const description = response?.error?.description || "Payment attempt failed.";
+        const issue: PaymentIssueDetails = {
+          message: `Payment attempt reported a failure: ${description} Check the existing order status before retrying. Do not pay through a new order.`,
+          paymentId: response?.error?.metadata?.payment_id || "",
+          orderId: response?.error?.metadata?.order_id || order.id,
+          signature: "",
+        };
+        persistPendingOrderRecovery(order.id, pin, sessionToken, apiBaseUrl);
+        setPaymentIssue(issue);
+        setStep("payment_issue");
+        setPaymentHandoffFlag(true);
         setIsPaying(false);
         fetch(`${apiBaseUrl}/api/set-state`, {
           method: "POST",
@@ -514,6 +555,7 @@ export default function Home() {
       const data = await res.json().catch(() => ({}));
       if (res.ok && ["submitted", "already_submitted"].includes(data.status)) {
         clearStoredPaymentRecovery();
+        setResumableOrder(null);
         setPaymentHandoffFlag(false);
         setStep("success");
       } else {
@@ -558,11 +600,40 @@ export default function Home() {
       // This endpoint never submits a print; all other states remain pending/review.
       if (res.ok && data.status === "submitted") {
         clearStoredPaymentRecovery();
+        setResumableOrder(null);
         setPaymentHandoffFlag(false);
         setStep("success");
         return;
       }
 
+      if (
+        res.ok &&
+        data.status === "awaiting_payment" &&
+        data.can_resume_same_order === true &&
+        data.razorpay_order_id === paymentIssue.orderId &&
+        Number.isSafeInteger(Number(data.amount)) &&
+        Number(data.amount) > 0 &&
+        data.currency === "INR"
+      ) {
+        const allowedOrder: ExistingRazorpayOrder = {
+          id: data.razorpay_order_id,
+          amount: Number(data.amount),
+          currency: data.currency,
+        };
+        setResumableOrder(allowedOrder);
+        const issue: PaymentIssueDetails = {
+          ...paymentIssue,
+          paymentId: "",
+          signature: "",
+          message: data.message ||
+            "No captured or unresolved payment attempt was found. You may resume checkout for this same order.",
+        };
+        setPaymentIssue(issue);
+        persistPendingPaymentRecovery(issue, pin, sessionToken, apiBaseUrl);
+        return;
+      }
+
+      setResumableOrder(null);
       const issue: PaymentIssueDetails = {
         ...paymentIssue,
         paymentId: typeof data.razorpay_payment_id === "string" && data.razorpay_payment_id
@@ -586,6 +657,73 @@ export default function Home() {
     }
   };
 
+  const resumeExistingOrder = async () => {
+    if (!resumableOrder || !paymentIssue.orderId || isReconciling || isPaying) return;
+    setIsReconciling(true);
+    setPaymentHandoffFlag(true);
+    try {
+      // Recheck immediately before opening Checkout; an earlier positive result can go stale.
+      const res = await fetch(`${apiBaseUrl}/api/payment-status`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          razorpay_order_id: paymentIssue.orderId,
+          session_id: pin,
+          session_token: sessionToken,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+
+      if (res.ok && data.status === "submitted") {
+        clearStoredPaymentRecovery();
+        setResumableOrder(null);
+        setPaymentHandoffFlag(false);
+        setStep("success");
+        return;
+      }
+
+      const canResume =
+        res.ok &&
+        data.status === "awaiting_payment" &&
+        data.can_resume_same_order === true &&
+        data.razorpay_order_id === paymentIssue.orderId &&
+        Number.isSafeInteger(Number(data.amount)) &&
+        Number(data.amount) > 0 &&
+        data.currency === "INR";
+
+      if (!canResume) {
+        setResumableOrder(null);
+        const issue: PaymentIssueDetails = {
+          ...paymentIssue,
+          paymentId: typeof data.razorpay_payment_id === "string" ? data.razorpay_payment_id : paymentIssue.paymentId,
+          message: data.message || data.error ||
+            "The existing order is no longer eligible for payment retry. Do not pay again; contact support if payment may have completed.",
+        };
+        setPaymentIssue(issue);
+        persistPendingPaymentRecovery(issue, pin, sessionToken, apiBaseUrl);
+        return;
+      }
+
+      const order: ExistingRazorpayOrder = {
+        id: data.razorpay_order_id,
+        amount: Number(data.amount),
+        currency: data.currency,
+      };
+      setResumableOrder(order);
+      // Opens Razorpay with the existing order ID; no /api/create-order call is made.
+      await handlePayment(order);
+    } catch {
+      const issue: PaymentIssueDetails = {
+        ...paymentIssue,
+        message: "Could not recheck the existing order. Do not pay again; check the order status when the connection returns.",
+      };
+      setPaymentIssue(issue);
+      persistPendingPaymentRecovery(issue, pin, sessionToken, apiBaseUrl);
+    } finally {
+      setIsReconciling(false);
+    }
+  };
+
   const handleReviewSubmit = async () => {
     setIsReviewSubmitted(true);
     try {
@@ -604,6 +742,7 @@ export default function Home() {
 
   const resetApp = async () => {
     clearStoredPaymentRecovery();
+    setResumableOrder(null);
     setPaymentHandoffFlag(false);
     setVerifiedSessionPin("");
     setSessionToken("");
@@ -868,8 +1007,17 @@ export default function Home() {
                         >
                           {isReconciling ? "Checking Existing Order..." : "Check Existing Order Status"}
                         </button>
+                        {resumableOrder && (
+                          <button
+                            onClick={resumeExistingOrder}
+                            disabled={isReconciling || isPaying}
+                            className="px-6 py-3.5 rounded-2xl font-semibold text-xs bg-white text-black hover:bg-zinc-200 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                          >
+                            {isReconciling || isPaying ? "Rechecking Existing Order..." : "Resume Payment for This Order"}
+                          </button>
+                        )}
                         <p className="text-xs text-amber-300 max-w-md">
-                          This checks the existing Razorpay order only. It will not create another payment or trigger printing. If a payment was captured but its confirmation was lost, support review may be required.
+                          This checks the existing Razorpay order only. It will not create another order or trigger printing during status checking. Payment can resume only if the server confirms this same order is eligible.
                         </p>
                       </div>
                     )}
