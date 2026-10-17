@@ -374,6 +374,30 @@ export default function Home() {
 
         const orderData = await orderRes.json().catch(() => ({}));
         if (!orderRes.ok || !orderData.id) {
+          // The backend deliberately refuses to return an existing order straight
+          // into checkout. Preserve it for reconciliation instead of treating
+          // that safety response as a generic error or clearing the recovery flag.
+          if (
+            orderRes.status === 409 &&
+            orderData.status === "existing_order_requires_reconciliation" &&
+            typeof orderData.order_id === "string" &&
+            orderData.order_id.length > 0
+          ) {
+            const issue: PaymentIssueDetails = {
+              message: orderData.error ||
+                "An existing payment order must be checked before checkout can resume. Do not pay again until its status is confirmed.",
+              paymentId: "",
+              orderId: orderData.order_id,
+              signature: "",
+            };
+            persistPendingOrderRecovery(orderData.order_id, pin, sessionToken, apiBaseUrl);
+            setPaymentIssue(issue);
+            setResumableOrder(null);
+            setPaymentHandoffFlag(true);
+            setStep("payment_issue");
+            setIsPaying(false);
+            return;
+          }
           throw new Error(orderData.error || orderData.message || "Order creation failed");
         }
 
