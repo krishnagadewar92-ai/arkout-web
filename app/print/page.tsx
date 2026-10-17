@@ -343,6 +343,10 @@ export default function Home() {
   };
 
   const handlePayment = async (existingOrder?: ExistingRazorpayOrder) => {
+    if (!apiBaseUrl) {
+      alert("This deployment has no approved backend endpoint. Checkout is disabled.");
+      return;
+    }
     if (!existingOrder && uploadedFilenames.length === 0) {
       alert("Upload your documents again before paying.");
       return;
@@ -574,7 +578,7 @@ export default function Home() {
   };
 
   const retryPaymentConfirmation = async () => {
-    if (!paymentIssue.orderId || !paymentIssue.paymentId || !paymentIssue.signature || isConfirming) return;
+    if (!apiBaseUrl || !paymentIssue.orderId || !paymentIssue.paymentId || !paymentIssue.signature || isConfirming) return;
     setIsConfirming(true);
     setPaymentHandoffFlag(true);
     try {
@@ -616,7 +620,7 @@ export default function Home() {
   };
 
   const reconcileExistingOrder = async () => {
-    if (!paymentIssue.orderId || !pin || !sessionToken || isReconciling) return;
+    if (!apiBaseUrl || !paymentIssue.orderId || !pin || !sessionToken || isReconciling) return;
     setIsReconciling(true);
     setPaymentHandoffFlag(true);
     try {
@@ -693,7 +697,7 @@ export default function Home() {
   };
 
   const resumeExistingOrder = async () => {
-    if (!resumableOrder || !paymentIssue.orderId || isReconciling || isPaying) return;
+    if (!apiBaseUrl || !resumableOrder || !paymentIssue.orderId || isReconciling || isPaying) return;
     setIsReconciling(true);
     setPaymentHandoffFlag(true);
     try {
@@ -1027,7 +1031,7 @@ export default function Home() {
                     {paymentIssue.orderId && paymentIssue.paymentId && paymentIssue.signature && (
                       <button
                         onClick={retryPaymentConfirmation}
-                        disabled={isConfirming}
+                        disabled={isConfirming || !apiBaseUrl}
                         className="px-6 py-3.5 rounded-2xl font-semibold text-xs bg-cyan-400 text-black hover:bg-cyan-300 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
                       >
                         {isConfirming ? "Checking Payment..." : "Check Payment / Print Status"}
