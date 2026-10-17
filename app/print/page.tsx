@@ -351,7 +351,8 @@ export default function Home() {
       }));
     } finally {
       setIsConfirming(false);
-      setPaymentHandoffFlag(false);
+      // Keep the session reserved if verification is still ambiguous; only a
+      // confirmed submission is allowed to clear the payment handoff flag.
     }
   };
 
