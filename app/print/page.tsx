@@ -34,7 +34,7 @@ export default function PrintRouterPage() {
   }
 
   // Preserve Terminal 01's four-digit route and its existing api.arkout.in contract.
-  if (!routePin || /^\\d{4}$/.test(routePin)) {
+  if (/^\\d{4}$/.test(routePin)) {
     return <Terminal01LegacyPrintPage />;
   }
 
