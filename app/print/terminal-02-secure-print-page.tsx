@@ -310,11 +310,12 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
       if (docs.length === 0 || typeof data.total_pages !== "number") {
         throw new Error("The server did not return a valid uploaded-document manifest.");
       }
+      const uploadedPageCount = data.total_pages;
       setUploadedDocuments(docs);
-      setTotalPages(data.total_pages);
+      setTotalPages(uploadedPageCount);
       setConfig((current) => ({
         ...current,
-        copies: Math.min(current.copies, Math.max(1, Math.floor(30 / data.total_pages))),
+        copies: Math.min(current.copies, Math.max(1, Math.floor(30 / uploadedPageCount))),
       }));
       setFiles([]);
       setMessage("Documents uploaded and registered to this kiosk session.");
