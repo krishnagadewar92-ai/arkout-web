@@ -4,11 +4,25 @@ import { NextResponse } from "next/server";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+const PREFIX = "arkout-ads/";
+const EXTENSION_TYPES: Record<string, string> = {
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  png: "image/png",
+  webp: "image/webp",
+  gif: "image/gif",
+  avif: "image/avif",
+  heic: "image/heic",
+  heif: "image/heif",
+  mp4: "video/mp4",
+  m4v: "video/x-m4v",
+  mov: "video/quicktime",
+  webm: "video/webm",
+};
+
 function typeFromPathname(pathname: string) {
-  if (pathname.endsWith(".jpg")) return "image/jpeg";
-  if (pathname.endsWith(".png")) return "image/png";
-  if (pathname.endsWith(".webp")) return "image/webp";
-  return "application/octet-stream";
+  const extension = pathname.split(".").pop()?.toLowerCase() || "";
+  return EXTENSION_TYPES[extension] || "";
 }
 
 export async function GET() {
@@ -21,14 +35,24 @@ export async function GET() {
   }
 
   try {
-    const { blobs } = await list({ prefix: "arkout-ads/", limit: 100, token });
+    const { blobs } = await list({ prefix: PREFIX, limit: 100, token });
     const ads = blobs
-      .map((blob) => ({
-        url: blob.url,
-        pathname: blob.pathname,
-        contentType: typeFromPathname(blob.pathname),
-        uploadedAt: blob.uploadedAt.toISOString(),
-      }))
+      .filter((blob) =>
+        blob.pathname.startsWith(PREFIX) &&
+        !blob.pathname.includes("..") &&
+        !blob.pathname.includes("\\") &&
+        Boolean(typeFromPathname(blob.pathname)),
+      )
+      .map((blob) => {
+        const contentType = typeFromPathname(blob.pathname);
+        return {
+          url: blob.url,
+          pathname: blob.pathname,
+          contentType,
+          type: contentType.startsWith("video/") ? "video" : "image",
+          uploadedAt: blob.uploadedAt.toISOString(),
+        };
+      })
       .sort((a, b) => b.uploadedAt.localeCompare(a.uploadedAt));
 
     return NextResponse.json(
@@ -36,7 +60,7 @@ export async function GET() {
       {
         headers: {
           "Access-Control-Allow-Origin": "*",
-          "Cache-Control": "public, max-age=60, s-maxage=60",
+          "Cache-Control": "public, max-age=30, s-maxage=30",
           "X-Content-Type-Options": "nosniff",
         },
       },
