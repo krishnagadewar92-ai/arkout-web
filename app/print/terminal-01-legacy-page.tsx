@@ -84,7 +84,7 @@ export default function Terminal01LegacyPrintPage() {
     setIsVerifying(true);
     setPinError("");
 
-    if (!/^\d{4}$/.test(pinToVerify)) {
+    if (!/^\\d{4}$/.test(pinToVerify)) {
       setPinError("Enter the 4-digit PIN shown on Terminal 01.");
       setIsVerifying(false);
       return;
