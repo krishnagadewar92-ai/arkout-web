@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
-import { ArrowLeft, LockKeyhole, Printer, ShieldCheck } from "lucide-react";
+import { ArrowLeft, Printer, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import Terminal01LegacyPrintPage from "./terminal-01-legacy-page";
 import Terminal02SecurePrintPage from "./terminal-02-secure-print-page";
