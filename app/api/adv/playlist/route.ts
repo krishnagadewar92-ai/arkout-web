@@ -20,9 +20,9 @@ export async function GET() {
         url: blob.url,
         pathname: blob.pathname,
         contentType: blob.contentType,
-        uploadedAt: blob.uploadedAt,
+        uploadedAt: blob.uploadedAt.toISOString(),
       }))
-      .sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime());
+      .sort((a, b) => b.uploadedAt.localeCompare(a.uploadedAt));
 
     return NextResponse.json(
       { ads, updatedAt: new Date().toISOString() },
