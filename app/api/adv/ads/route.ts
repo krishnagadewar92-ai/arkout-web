@@ -14,6 +14,13 @@ const TYPES: Record<string, string> = {
   "image/webp": "webp",
 };
 
+function typeFromPathname(pathname: string) {
+  if (pathname.endsWith(".jpg")) return "image/jpeg";
+  if (pathname.endsWith(".png")) return "image/png";
+  if (pathname.endsWith(".webp")) return "image/webp";
+  return "application/octet-stream";
+}
+
 function json(body: Record<string, unknown>, status = 200) {
   return NextResponse.json(body, {
     status,
@@ -48,7 +55,7 @@ export async function GET(request: NextRequest) {
         url: blob.url,
         size: blob.size,
         uploadedAt: blob.uploadedAt.toISOString(),
-        contentType: blob.contentType,
+        contentType: typeFromPathname(blob.pathname),
       }))
       .sort((a, b) => b.uploadedAt.localeCompare(a.uploadedAt));
     return json({ ads });
@@ -104,7 +111,7 @@ export async function POST(request: NextRequest) {
       ad: {
         pathname: blob.pathname,
         url: blob.url,
-        contentType: blob.contentType,
+        contentType: typeFromPathname(blob.pathname),
         uploadedAt: new Date().toISOString(),
         size: file.size,
       },
