@@ -87,7 +87,7 @@ export default function ArkoutLandingPage() {
           <a href="#contact" className="hover:text-blue-600 transition-colors">Contact</a>
         </div>
         <a 
-          href="/print" 
+          href="/launching-soon" 
           className="px-5 py-2.5 text-sm font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 shadow-sm shadow-blue-200 transition-all flex items-center gap-2"
         >
           Start Printing <ArrowRight className="w-4 h-4" />
@@ -111,7 +111,7 @@ export default function ArkoutLandingPage() {
         </p>
         <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
           <a 
-            href="/print" 
+            href="/launching-soon" 
             className="w-full sm:w-auto px-8 py-4 text-base font-semibold text-white bg-slate-900 rounded-xl hover:bg-slate-800 shadow-lg shadow-slate-200 transition-all flex items-center justify-center gap-2"
           >
             Start Printing <ArrowRight className="w-5 h-5" />
