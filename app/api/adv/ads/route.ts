@@ -47,10 +47,10 @@ export async function GET(request: NextRequest) {
         pathname: blob.pathname,
         url: blob.url,
         size: blob.size,
-        uploadedAt: blob.uploadedAt,
+        uploadedAt: blob.uploadedAt.toISOString(),
         contentType: blob.contentType,
       }))
-      .sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime());
+      .sort((a, b) => b.uploadedAt.localeCompare(a.uploadedAt));
     return json({ ads });
   } catch {
     return json({ error: "Could not load advertisements from storage." }, 502);
@@ -80,9 +80,21 @@ export async function POST(request: NextRequest) {
     return json({ error: "Use a JPG, PNG, or WebP image." }, 415);
   }
 
+  const bytes = Buffer.from(await file.arrayBuffer());
+  const isJpeg = bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+  const isPng = bytes.length >= 8 && bytes.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+  const isWebp = bytes.length >= 12 && bytes.toString("ascii", 0, 4) === "RIFF" && bytes.toString("ascii", 8, 12) === "WEBP";
+  const bytesMatchType =
+    (file.type === "image/jpeg" && isJpeg) ||
+    (file.type === "image/png" && isPng) ||
+    (file.type === "image/webp" && isWebp);
+  if (!bytesMatchType) {
+    return json({ error: "The file contents do not match the selected image format." }, 415);
+  }
+
   try {
     const pathname = `${PREFIX}${Date.now()}-${randomUUID()}.${extension}`;
-    const blob = await put(pathname, file, {
+    const blob = await put(pathname, bytes, {
       access: "public",
       addRandomSuffix: false,
       contentType: file.type,
