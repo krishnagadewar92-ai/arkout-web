@@ -4,6 +4,13 @@ import { NextResponse } from "next/server";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+function typeFromPathname(pathname: string) {
+  if (pathname.endsWith(".jpg")) return "image/jpeg";
+  if (pathname.endsWith(".png")) return "image/png";
+  if (pathname.endsWith(".webp")) return "image/webp";
+  return "application/octet-stream";
+}
+
 export async function GET() {
   const token = process.env.BLOB_READ_WRITE_TOKEN;
   if (!token) {
@@ -19,7 +26,7 @@ export async function GET() {
       .map((blob) => ({
         url: blob.url,
         pathname: blob.pathname,
-        contentType: blob.contentType,
+        contentType: typeFromPathname(blob.pathname),
         uploadedAt: blob.uploadedAt.toISOString(),
       }))
       .sort((a, b) => b.uploadedAt.localeCompare(a.uploadedAt));
