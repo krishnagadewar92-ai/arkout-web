@@ -1,0 +1,125 @@
+import { del, list, put } from "@vercel/blob";
+import { randomUUID } from "node:crypto";
+import { NextRequest, NextResponse } from "next/server";
+import { ADV_COOKIE_NAME, isSameOrigin, isValidAdvSession } from "@/lib/adv-auth";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+const PREFIX = "arkout-ads/";
+const MAX_FILE_SIZE = 3 * 1024 * 1024;
+const TYPES: Record<string, string> = {
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+};
+
+function json(body: Record<string, unknown>, status = 200) {
+  return NextResponse.json(body, {
+    status,
+    headers: { "Cache-Control": "no-store" },
+  });
+}
+
+function authorized(request: NextRequest) {
+  return isValidAdvSession(request.cookies.get(ADV_COOKIE_NAME)?.value);
+}
+
+function blobToken() {
+  return process.env.BLOB_READ_WRITE_TOKEN || "";
+}
+
+async function getBlobs() {
+  const token = blobToken();
+  if (!token) throw new Error("BLOB_NOT_CONFIGURED");
+  const result = await list({ prefix: PREFIX, limit: 100, token });
+  return result.blobs;
+}
+
+export async function GET(request: NextRequest) {
+  if (!authorized(request)) return json({ error: "Sign in to manage advertisements." }, 401);
+  if (!blobToken()) return json({ error: "Advertisement storage is not configured yet." }, 503);
+
+  try {
+    const blobs = await getBlobs();
+    const ads = blobs
+      .map((blob) => ({
+        pathname: blob.pathname,
+        url: blob.url,
+        size: blob.size,
+        uploadedAt: blob.uploadedAt,
+        contentType: blob.contentType,
+      }))
+      .sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime());
+    return json({ ads });
+  } catch {
+    return json({ error: "Could not load advertisements from storage." }, 502);
+  }
+}
+
+export async function POST(request: NextRequest) {
+  if (!isSameOrigin(request)) return json({ error: "Request origin rejected." }, 403);
+  if (!authorized(request)) return json({ error: "Sign in to upload advertisements." }, 401);
+  if (!blobToken()) return json({ error: "Advertisement storage is not configured yet." }, 503);
+
+  let form: FormData;
+  try {
+    form = await request.formData();
+  } catch {
+    return json({ error: "Invalid upload request." }, 400);
+  }
+  const file = form.get("file");
+  if (!(file instanceof File) || file.size < 1) {
+    return json({ error: "Choose an image to upload." }, 400);
+  }
+  if (file.size > MAX_FILE_SIZE) {
+    return json({ error: "Images must be 3 MB or smaller." }, 413);
+  }
+  const extension = TYPES[file.type];
+  if (!extension) {
+    return json({ error: "Use a JPG, PNG, or WebP image." }, 415);
+  }
+
+  try {
+    const pathname = `${PREFIX}${Date.now()}-${randomUUID()}.${extension}`;
+    const blob = await put(pathname, file, {
+      access: "public",
+      addRandomSuffix: false,
+      contentType: file.type,
+      token: blobToken(),
+    });
+    return json({
+      ad: {
+        pathname: blob.pathname,
+        url: blob.url,
+        contentType: blob.contentType,
+        uploadedAt: new Date().toISOString(),
+        size: file.size,
+      },
+    }, 201);
+  } catch {
+    return json({ error: "Upload failed. Check the connected Blob store." }, 502);
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  if (!isSameOrigin(request)) return json({ error: "Request origin rejected." }, 403);
+  if (!authorized(request)) return json({ error: "Sign in to delete advertisements." }, 401);
+  if (!blobToken()) return json({ error: "Advertisement storage is not configured yet." }, 503);
+
+  const pathname = request.nextUrl.searchParams.get("pathname") || "";
+  if (!pathname.startsWith(PREFIX) || pathname.includes("..") || pathname.includes("\\")) {
+    return json({ error: "Invalid advertisement identifier." }, 400);
+  }
+
+  try {
+    const blobs = await getBlobs();
+    if (!blobs.some((blob) => blob.pathname === pathname)) {
+      return json({ error: "Advertisement not found." }, 404);
+    }
+    await del(pathname, { token: blobToken() });
+    return json({ ok: true });
+  } catch {
+    return json({ error: "Could not delete the advertisement." }, 502);
+  }
+}
