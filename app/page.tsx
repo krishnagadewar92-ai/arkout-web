@@ -6,61 +6,61 @@ export default function ArkoutLandingPage() {
     {
       id: 1,
       title: "1. Connect",
-      desc: "Enter the 4-digit PIN to unlock terminal[cite: 19]",
+      desc: "Enter the 4-digit PIN to unlock terminal",
       img: "WhatsApp Image 2026-09-20 at 11.30.43 PM (2).jpeg"
     },
     {
       id: 2,
       title: "2. Upload",
-      desc: "Drag & drop to initialize print job[cite: 18]",
+      desc: "Drag & drop to initialize print job",
       img: "WhatsApp Image 2026-09-20 at 11.30.43 PM (1).jpeg"
     },
     {
       id: 3,
       title: "3. Analyze",
-      desc: "Ready for AI Analysis & configure[cite: 20]",
+      desc: "Ready for AI Analysis & configure",
       img: "WhatsApp Image 2026-09-20 at 11.30.43 PM.jpeg"
     },
     {
       id: 4,
       title: "4. Configure",
-      desc: "Select ink type and print layout[cite: 23]",
+      desc: "Select ink type and print layout",
       img: "WhatsApp Image 2026-09-20 at 11.30.44 PM.jpeg"
     },
     {
       id: 5,
       title: "5. Review",
-      desc: "Review total pages and secure pay[cite: 21]",
+      desc: "Review total pages and secure pay",
       img: "WhatsApp Image 2026-09-20 at 11.30.44 PM (1).jpeg"
     },
     {
       id: 6,
       title: "6. Payment Option",
-      desc: "Select UPI or preferred payment[cite: 22]",
+      desc: "Select UPI or preferred payment",
       img: "WhatsApp Image 2026-09-20 at 11.30.44 PM (2).jpeg"
     },
     {
       id: 7,
       title: "7. Processing",
-      desc: "Securely processing your payment[cite: 14]",
+      desc: "Securely processing your payment",
       img: "WhatsApp Image 2026-09-20 at 11.30.41 PM.jpeg"
     },
     {
       id: 8,
       title: "8. Confirming",
-      desc: "Razorpay transaction confirmation[cite: 15]",
+      desc: "Razorpay transaction confirmation",
       img: "WhatsApp Image 2026-09-20 at 11.30.42 PM (1).jpeg"
     },
     {
       id: 9,
       title: "9. Success",
-      desc: "Payment verified and successful[cite: 16]",
+      desc: "Payment verified and successful",
       img: "WhatsApp Image 2026-09-20 at 11.30.42 PM (2).jpeg"
     },
     {
       id: 10,
       title: "10. Printing",
-      desc: "Hardware triggered instantly[cite: 17]",
+      desc: "Hardware triggered instantly",
       img: "WhatsApp Image 2026-09-20 at 11.30.42 PM.jpeg"
     }
   ];
@@ -87,7 +87,7 @@ export default function ArkoutLandingPage() {
           <a href="#contact" className="hover:text-blue-600 transition-colors">Contact</a>
         </div>
         <a 
-          href="/print" 
+          href="/launching-soon" 
           className="px-5 py-2.5 text-sm font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 shadow-sm shadow-blue-200 transition-all flex items-center gap-2"
         >
           Start Printing <ArrowRight className="w-4 h-4" />
@@ -101,17 +101,17 @@ export default function ArkoutLandingPage() {
           Now live at Pemraj Sarda College
         </div>
         <h1 className="text-5xl md:text-7xl font-extrabold tracking-tight text-slate-900 mb-6 leading-tight">
-          Modernize Campus Printing. <br className="hidden md:block" />
+          Campus Printing, Simplified. <br className="hidden md:block" />
           <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-cyan-500">
-            Zero Maintenance Required.
+            Built for Campus Self-Service.
           </span>
         </h1>
         <p className="max-w-2xl mx-auto text-lg md:text-xl text-slate-600 mb-10 leading-relaxed">
-          Arkout is the fully autonomous, secure, and self-sustaining print kiosk designed for modern universities. No paper-jam tickets. No IT overhead.
+          Arkout is a self-service printing platform designed for campus environments, helping students move from document setup to print options through a simple digital workflow.
         </p>
         <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
           <a 
-            href="/print" 
+            href="/launching-soon" 
             className="w-full sm:w-auto px-8 py-4 text-base font-semibold text-white bg-slate-900 rounded-xl hover:bg-slate-800 shadow-lg shadow-slate-200 transition-all flex items-center justify-center gap-2"
           >
             Start Printing <ArrowRight className="w-5 h-5" />
@@ -128,9 +128,9 @@ export default function ArkoutLandingPage() {
       {/* Trust Ticker */}
       <div className="border-y border-slate-200 bg-white py-6 overflow-hidden">
         <div className="max-w-6xl mx-auto px-6 flex flex-wrap justify-center gap-8 md:gap-16 text-sm font-semibold text-slate-500">
-          <span className="flex items-center gap-2"><Shield className="w-4 h-4"/> Military-Grade Security</span>
-          <span className="flex items-center gap-2"><Zap className="w-4 h-4"/> Zero IT Overhead</span>
-          <span className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4"/> 45,000+ Prints Processed</span>
+          <span className="flex items-center gap-2"><Shield className="w-4 h-4"/> Designed for Campuses</span>
+          <span className="flex items-center gap-2"><Zap className="w-4 h-4"/> Simple Self-Service</span>
+          <span className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4"/> Flexible Print Options</span>
         </div>
       </div>
 
@@ -171,16 +171,16 @@ export default function ArkoutLandingPage() {
               </div>
               <h3 className="text-xl font-bold text-slate-900 mb-3">Autonomous Operation</h3>
               <p className="text-slate-600 leading-relaxed">
-                Hardware runs entirely on its own. No ink refill requests, no paper-jam support tickets for your staff to manage.
+                A straightforward workflow helps students prepare documents and select print settings with less hands-on guidance.
               </p>
             </div>
             <div className="p-8 bg-slate-50 border border-slate-200 rounded-2xl shadow-sm hover:shadow-md transition-shadow">
               <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center mb-6">
                 <Shield className="w-6 h-6" />
               </div>
-              <h3 className="text-xl font-bold text-slate-900 mb-3">Zero-Trace Security</h3>
+              <h3 className="text-xl font-bold text-slate-900 mb-3">Privacy-Aware Design</h3>
               <p className="text-slate-600 leading-relaxed">
-                Documents are encrypted in transit and permanently wiped from our servers the exact millisecond printing is complete.
+                The product is being built to separate customer documents from marketing assets and use session-based access controls in the checkout flow.
               </p>
             </div>
             <div className="p-8 bg-slate-50 border border-slate-200 rounded-2xl shadow-sm hover:shadow-md transition-shadow">
@@ -189,7 +189,7 @@ export default function ArkoutLandingPage() {
               </div>
               <h3 className="text-xl font-bold text-slate-900 mb-3">Resource Optimization</h3>
               <p className="text-slate-600 leading-relaxed">
-                AI automatically detects and removes blank pages, optimizing ink and paper usage while saving students money.
+                Configurable options such as colour mode, copies, and page layout help users choose settings that fit each print job.
               </p>
             </div>
           </div>
