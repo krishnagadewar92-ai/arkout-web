@@ -1,5 +1,5 @@
-import { del, list, put } from "@vercel/blob";
-import { randomUUID } from "node:crypto";
+import { del, list } from "@vercel/blob";
+import { handleUpload, type HandleUploadBody } from "@vercel/blob/client";
 import { NextRequest, NextResponse } from "next/server";
 import { ADV_COOKIE_NAME, isSameOrigin, isValidAdvSession } from "@/lib/adv-auth";
 
@@ -7,18 +7,36 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const PREFIX = "arkout-ads/";
-const MAX_FILE_SIZE = 3 * 1024 * 1024;
-const TYPES: Record<string, string> = {
-  "image/jpeg": "jpg",
-  "image/png": "png",
-  "image/webp": "webp",
+const MAX_FILE_SIZE = 50 * 1024 * 1024;
+const EXTENSION_TYPES: Record<string, string> = {
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  png: "image/png",
+  webp: "image/webp",
+  gif: "image/gif",
+  avif: "image/avif",
+  heic: "image/heic",
+  heif: "image/heif",
+  mp4: "video/mp4",
+  m4v: "video/x-m4v",
+  mov: "video/quicktime",
+  webm: "video/webm",
 };
 
 function typeFromPathname(pathname: string) {
-  if (pathname.endsWith(".jpg")) return "image/jpeg";
-  if (pathname.endsWith(".png")) return "image/png";
-  if (pathname.endsWith(".webp")) return "image/webp";
-  return "application/octet-stream";
+  const extension = pathname.split(".").pop()?.toLowerCase() || "";
+  return EXTENSION_TYPES[extension] || "application/octet-stream";
+}
+
+function supportedPathname(pathname: string) {
+  if (!pathname.startsWith(PREFIX) || pathname.includes("..") || pathname.includes("\\")) return false;
+  const filename = pathname.slice(PREFIX.length);
+  return /^\d+-[0-9a-f-]{36}\.(jpg|jpeg|png|webp|gif|avif|heic|heif|mp4|m4v|mov|webm)$/i.test(filename);
+}
+
+function isSupportedBlobPath(pathname: string) {
+  return pathname.startsWith(PREFIX) && !pathname.includes("..") && !pathname.includes("\\") &&
+    typeFromPathname(pathname) !== "application/octet-stream";
 }
 
 function json(body: Record<string, unknown>, status = 200) {
@@ -40,7 +58,7 @@ async function getBlobs() {
   const token = blobToken();
   if (!token) throw new Error("BLOB_NOT_CONFIGURED");
   const result = await list({ prefix: PREFIX, limit: 100, token });
-  return result.blobs;
+  return result.blobs.filter((blob) => isSupportedBlobPath(blob.pathname));
 }
 
 export async function GET(request: NextRequest) {
@@ -65,59 +83,51 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  if (!isSameOrigin(request)) return json({ error: "Request origin rejected." }, 403);
-  if (!authorized(request)) return json({ error: "Sign in to upload advertisements." }, 401);
   if (!blobToken()) return json({ error: "Advertisement storage is not configured yet." }, 503);
 
-  let form: FormData;
+  let body: HandleUploadBody;
   try {
-    form = await request.formData();
+    body = (await request.json()) as HandleUploadBody;
   } catch {
     return json({ error: "Invalid upload request." }, 400);
   }
-  const file = form.get("file");
-  if (!(file instanceof File) || file.size < 1) {
-    return json({ error: "Choose an image to upload." }, 400);
-  }
-  if (file.size > MAX_FILE_SIZE) {
-    return json({ error: "Images must be 3 MB or smaller." }, 413);
-  }
-  const extension = TYPES[file.type];
-  if (!extension) {
-    return json({ error: "Use a JPG, PNG, or WebP image." }, 415);
-  }
 
-  const bytes = Buffer.from(await file.arrayBuffer());
-  const isJpeg = bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
-  const isPng = bytes.length >= 8 && bytes.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
-  const isWebp = bytes.length >= 12 && bytes.toString("ascii", 0, 4) === "RIFF" && bytes.toString("ascii", 8, 12) === "WEBP";
-  const bytesMatchType =
-    (file.type === "image/jpeg" && isJpeg) ||
-    (file.type === "image/png" && isPng) ||
-    (file.type === "image/webp" && isWebp);
-  if (!bytesMatchType) {
-    return json({ error: "The file contents do not match the selected image format." }, 415);
+  // Vercel Blob calls this same route after upload completion. handleUpload verifies
+  // that callback; browser token generation still requires same-origin + a valid session.
+  const isBlobCompletion = (body as { type?: string }).type === "blob.upload-completed";
+  if (!isBlobCompletion) {
+    if (!isSameOrigin(request)) return json({ error: "Request origin rejected." }, 403);
+    if (!authorized(request)) return json({ error: "Sign in to upload advertisements." }, 401);
   }
 
   try {
-    const pathname = `${PREFIX}${Date.now()}-${randomUUID()}.${extension}`;
-    const blob = await put(pathname, bytes, {
-      access: "public",
-      addRandomSuffix: false,
-      contentType: file.type,
+    const result = await handleUpload({
+      body,
+      request,
       token: blobToken(),
-    });
-    return json({
-      ad: {
-        pathname: blob.pathname,
-        url: blob.url,
-        contentType: typeFromPathname(blob.pathname),
-        uploadedAt: new Date().toISOString(),
-        size: file.size,
+      onBeforeGenerateToken: async (pathname) => {
+        if (!supportedPathname(pathname)) throw new Error("Unsupported advertisement file name.");
+        const contentType = typeFromPathname(pathname);
+        if (contentType === "application/octet-stream") throw new Error("Unsupported advertisement format.");
+        return {
+          allowedContentTypes: [contentType],
+          maximumSizeInBytes: MAX_FILE_SIZE,
+          addRandomSuffix: false,
+          validUntil: Date.now() + 15 * 60 * 1000,
+          tokenPayload: JSON.stringify({ prefix: PREFIX }),
+        };
       },
-    }, 201);
-  } catch {
-    return json({ error: "Upload failed. Check the connected Blob store." }, 502);
+      onUploadCompleted: async ({ blob }) => {
+        if (!isSupportedBlobPath(blob.pathname)) throw new Error("Unsupported advertisement upload.");
+      },
+    });
+    return json(result as unknown as Record<string, unknown>);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Upload failed.";
+    return json({ error: message === "Unsupported advertisement file name." ||
+      message === "Unsupported advertisement format."
+      ? message
+      : "Upload failed. Check the selected media format and try again." }, 400);
   }
 }
 
@@ -127,7 +137,7 @@ export async function DELETE(request: NextRequest) {
   if (!blobToken()) return json({ error: "Advertisement storage is not configured yet." }, 503);
 
   const pathname = request.nextUrl.searchParams.get("pathname") || "";
-  if (!pathname.startsWith(PREFIX) || pathname.includes("..") || pathname.includes("\\")) {
+  if (!isSupportedBlobPath(pathname)) {
     return json({ error: "Invalid advertisement identifier." }, 400);
   }
 
