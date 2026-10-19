@@ -101,7 +101,7 @@ export default function AdvertisementPortalPage() {
       setFile(null);
       const input = document.getElementById("ad-image") as HTMLInputElement | null;
       if (input) input.value = "";
-      setMessage("Advertisement uploaded. It is now available in the kiosk playlist feed.");
+      setMessage("Advertisement saved. The playlist feed is ready; the live kiosk still needs to be connected to consume it.");
       await loadAds();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Upload failed.");
@@ -208,7 +208,7 @@ export default function AdvertisementPortalPage() {
               <aside className="rounded-3xl border border-cyan-300/15 bg-cyan-300/[0.04] p-6 sm:p-8">
                 <ShieldCheck size={25} className="text-cyan-300" />
                 <h2 className="mt-4 text-lg font-bold">Protected by design</h2>
-                <p className="mt-2 text-sm leading-6 text-slate-400">Only authenticated sessions can upload or delete assets. The kiosk playlist is read-only. No printer, payment, maintenance, or revenue controls are exposed here.</p>
+                <p className="mt-2 text-sm leading-6 text-slate-400">Only authenticated sessions can upload or delete assets. The public playlist is read-only. No printer, payment, maintenance, or revenue controls are exposed here. Kiosk-side playlist polling is a separate integration step.</p>
                 <button disabled={busy} onClick={() => void loadAds()} className="mt-6 inline-flex items-center gap-2 rounded-xl border border-white/15 px-4 py-2 text-sm font-semibold hover:bg-white/5 disabled:opacity-50"><RefreshCw size={15} /> Refresh library</button>
                 <p className="mt-5 break-all text-xs text-slate-500">Playlist feed: <code>/api/adv/playlist</code></p>
               </aside>
