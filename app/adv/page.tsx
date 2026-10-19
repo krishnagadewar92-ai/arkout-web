@@ -2,7 +2,7 @@
 
 import { ChangeEvent, FormEvent, useCallback, useEffect, useState } from "react";
 import { upload as uploadBlob } from "@vercel/blob/client";
-import { Image as ImageIcon, LogOut, RefreshCw, ShieldCheck, Trash2, Upload, Video } from "lucide-react";
+import { Image as ImageIcon, LogOut, RefreshCw, ShieldCheck, Trash2, Upload } from "lucide-react";
 
 type AdAsset = {
   pathname: string;
