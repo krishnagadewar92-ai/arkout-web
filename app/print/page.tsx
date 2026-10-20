@@ -3,7 +3,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { ArrowLeft, ArrowRight, ShieldCheck } from "lucide-react";
+import { ArrowLeft, ArrowRight, Printer, ShieldCheck } from "lucide-react";
 import Terminal01LegacyPrintPage from "./terminal-01-legacy-page";
 import Terminal02SecurePrintPage from "./terminal-02-secure-print-page";
 
@@ -92,6 +92,7 @@ export default function PrintRouterPage() {
           <button type="submit" className="print-router-button">Continue to kiosk <ArrowRight size={17} aria-hidden="true" /></button>
         </form>
         <div className="print-router-note"><ShieldCheck size={17} aria-hidden="true" /><span>Each PIN is routed only to its corresponding terminal API.</span></div>
+        <Link href="/print/preview" className="print-router-preview"><Printer size={16} aria-hidden="true" /> Explore the print interface safely <ArrowRight size={15} aria-hidden="true" /></Link>
         <Link href="/" className="print-router-back"><ArrowLeft size={17} aria-hidden="true" /> Back to Arkout</Link>
       </section>
     </main>
