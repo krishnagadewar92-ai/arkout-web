@@ -354,7 +354,7 @@ export default function ArkoutAdminPage() {
           {!gatewayReady ? (
             <div className="admin-glass-panel admin-connection-alert">
               <AlertTriangle size={22} />
-              <div><h2>Secure Pi connection not configured</h2><p>Configure the server-side variables for a private HTTPS tunnel to the Raspberry Pi's loopback-only admin service:</p><div className="admin-setup-list"><code>ARKOUT_ADMIN_UPSTREAM_URL</code><code>ARKOUT_ADMIN_UPSTREAM_USERNAME</code><code>ARKOUT_ADMIN_UPSTREAM_PASSWORD</code><code>ARKOUT_ADMIN_ACCESS_CLIENT_ID</code><code>ARKOUT_ADMIN_ACCESS_CLIENT_SECRET</code></div><p className="admin-muted">Protect the hostname with a Cloudflare Access application using service-token authentication. The server sends the Access Client ID and Secret headers. Do not expose port 8899 directly to the public internet.</p></div>
+              <div><h2>Secure Pi connection not configured</h2><p>Configure the server-side variables for a private HTTPS tunnel to the Raspberry Pi's loopback-only admin service:</p><div className="admin-setup-list"><code>ARKOUT_ADMIN_UPSTREAM_URL</code><code>ARKOUT_ADMIN_UPSTREAM_USERNAME</code><code>ARKOUT_ADMIN_UPSTREAM_PASSWORD</code><code>Optional: ARKOUT_ADMIN_ACCESS_CLIENT_ID</code><code>Optional: ARKOUT_ADMIN_ACCESS_CLIENT_SECRET</code></div><p className="admin-muted">Protect the hostname with a Cloudflare Access application using service-token authentication. Cloudflare Access service-token variables are optional; without them, the Pi admin API's Basic Auth is the origin protection. Use a long unique password and do not expose port 8899 directly except through the tunnel.</p></div>
             </div>
           ) : (
             <>
