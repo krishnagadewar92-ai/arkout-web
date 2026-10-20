@@ -11,6 +11,7 @@ const ALLOWED: Record<string, string[]> = {
     "/api/status",
     "/api/admin/maintenance",
     "/api/printer/telemetry",
+    "/api/printer/queue",
     "/api/printer/history",
     "/api/paper-stock",
     "/api/revenue/history",
