@@ -49,6 +49,18 @@ function scalar(value: unknown): string {
   return "—";
 }
 
+function formatUptime(seconds: number): string {
+  if (!Number.isFinite(seconds) || seconds < 0) return "—";
+  const total = Math.floor(seconds);
+  const days = Math.floor(total / 86400);
+  const hours = Math.floor((total % 86400) / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  if (days > 0) return `${days}d ${hours}h`;
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  if (minutes > 0) return `${minutes}m`;
+  return `${total}s`;
+}
+
 function firstDefined(source: Json | null, keys: string[]) {
   if (!source) return undefined;
   for (const key of keys) if (source[key] !== undefined && source[key] !== null) return source[key];
@@ -303,9 +315,12 @@ export default function ArkoutAdminPage() {
   const liveQueueJobs = queueJobs(queueData);
   const jobs = liveQueueJobs.length ? liveQueueJobs : queueJobs(status);
   const uploads = recentUploads(uploadsData);
-  const todayRevenue = firstDefined(revenue, ["today_revenue", "todayRevenue", "revenue_today"]);
-  const weekRevenue = firstDefined(revenue, ["week_revenue", "weekly_revenue", "this_week"]);
-  const monthRevenue = firstDefined(revenue, ["month_revenue", "monthly_revenue", "this_month"]);
+  const networkStatus = status?.network && typeof status.network === "object" ? status.network as Json : null;
+  const systemStatus = status?.system && typeof status.system === "object" ? status.system as Json : null;
+  const revenueSummary = status?.revenue && typeof status.revenue === "object" ? status.revenue as Json : null;
+  const todayRevenue = firstDefined(revenueSummary?.today, ["total_revenue"]) ?? firstDefined(revenue, ["today_revenue", "todayRevenue", "revenue_today"]);
+  const weekRevenue = firstDefined(revenueSummary?.this_week, ["total_revenue"]) ?? firstDefined(revenue, ["week_revenue", "weekly_revenue"]);
+  const monthRevenue = firstDefined(revenueSummary?.this_month, ["total_revenue"]) ?? firstDefined(revenue, ["month_revenue", "monthly_revenue"]);
 
   return (
     <main className="arkout-admin-page">
@@ -411,13 +426,13 @@ export default function ArkoutAdminPage() {
                   <div className="admin-card-heading"><div><p className="admin-kicker">SYSTEM HEALTH</p><h2>Network & device</h2></div><Network size={21} /></div>
                   <div className="admin-health-grid">
                     {[
-                      ["Network", firstDefined(status, ["network_status", "network", "internet_status", "online"])],
-                      ["CPU", firstDefined(status, ["cpu_percent", "cpu", "cpu_usage"])],
-                      ["RAM", firstDefined(status, ["ram_percent", "ram", "memory_percent"])],
-                      ["Disk", firstDefined(status, ["disk_percent", "disk", "disk_usage"])],
-                      ["CPU temperature", firstDefined(status, ["cpu_temp_c", "cpu_temperature", "temperature"])],
-                      ["Uptime", firstDefined(status, ["uptime", "uptime_text"])],
-                      ["Latency", firstDefined(status, ["latency_ms", "latency"])],
+                      ["Network", networkStatus?.online === true ? "Online" : networkStatus?.online === false ? "Offline" : undefined],
+                      ["CPU", typeof systemStatus?.cpu_pct === "number" ? `${scalar(systemStatus.cpu_pct)}%` : undefined],
+                      ["RAM", typeof systemStatus?.ram_pct === "number" ? `${scalar(systemStatus.ram_pct)}%` : undefined],
+                      ["Disk", typeof systemStatus?.disk_pct === "number" ? `${scalar(systemStatus.disk_pct)}%` : undefined],
+                      ["CPU temperature", typeof systemStatus?.cpu_temp_c === "number" ? `${scalar(systemStatus.cpu_temp_c)} °C` : undefined],
+                      ["Uptime", typeof systemStatus?.uptime_sec === "number" ? formatUptime(systemStatus.uptime_sec) : undefined],
+                      ["Latency", typeof networkStatus?.latency_ms === "number" ? `${scalar(networkStatus.latency_ms)} ms` : undefined],
                     ].map(([label,value]) => <div className="admin-health-item" key={String(label)}><span>{String(label)}</span><strong>{scalar(value)}</strong></div>)}
                   </div>
                   <p className="admin-muted">Values shown here are fields returned by the Pi's status endpoint.</p>
@@ -426,9 +441,9 @@ export default function ArkoutAdminPage() {
                 <section className="admin-glass-panel">
                   <div className="admin-card-heading"><div><p className="admin-kicker">REVENUE & REPORTS</p><h2>Recorded business activity</h2></div><BarChart3 size={21} /></div>
                   <div className="admin-revenue-metrics">
-                    <div><span>Today</span><strong>{formatRupees(typeof todayRevenue === "number" ? todayRevenue : typeof revenue?.today === "number" ? revenue.today : undefined)}</strong></div>
-                    <div><span>This week</span><strong>{formatRupees(typeof weekRevenue === "number" ? weekRevenue : undefined)}</strong></div>
-                    <div><span>This month</span><strong>{formatRupees(typeof monthRevenue === "number" ? monthRevenue : undefined)}</strong></div>
+                    <div><span>Today</span><strong>{formatRupees(todayRevenue)}</strong></div>
+                    <div><span>This week</span><strong>{formatRupees(weekRevenue)}</strong></div>
+                    <div><span>This month</span><strong>{formatRupees(monthRevenue)}</strong></div>
                   </div>
                   <div className="admin-report-actions">
                     <button className="admin-secondary-button" disabled={busy} onClick={() => void downloadReport("api/revenue/export.csv","arkout-revenue.csv")}><Download size={15} /> Export revenue CSV</button>
