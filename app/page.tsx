@@ -180,7 +180,7 @@ export default function ArkoutLandingPage() {
         <div className="site-footer-inner">
           <Link className="site-brand site-brand-footer" href="/"><Image src="/arkout-logo.png" alt="" width={30} height={30} className="site-brand-logo" /><span>arkout</span></Link>
           <p>Campus printing, made simpler.</p>
-          <span>© {new Date().getFullYear()} Arkout Digital Printing</span>
+          <span>© {new Date().getFullYear()} Arkout Techworks Pvt. Ltd.</span>
         </div>
         <div className="site-footer-bottom"><a href="#top">Back to top ↑</a><span>Designed for the details.</span></div>
       </footer>
