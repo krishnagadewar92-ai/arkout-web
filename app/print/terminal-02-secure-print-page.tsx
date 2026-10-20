@@ -566,7 +566,7 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
 
   if (sessionLoading) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-slate-950 px-5 text-white">
+      <main className="arkout-print-flow flex min-h-screen items-center justify-center bg-slate-950 px-5 text-white">
         <div className="flex items-center gap-3 text-slate-300"><LoaderCircle className="animate-spin" size={20} /> Connecting securely to Terminal 02…</div>
       </main>
     );
@@ -574,7 +574,7 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
 
   if (maintenanceMessage || startupError) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-slate-950 px-5 py-12 text-white">
+      <main className="arkout-print-flow flex min-h-screen items-center justify-center bg-slate-950 px-5 py-12 text-white">
         <section className="w-full max-w-xl rounded-3xl border border-white/10 bg-white/[0.04] p-7 shadow-2xl sm:p-10">
           <div className="mb-7 flex h-14 w-14 items-center justify-center rounded-2xl border border-amber-300/20 bg-amber-300/10 text-amber-200">
             {maintenanceMessage ? <LockKeyhole size={28} aria-hidden="true" /> : <AlertTriangle size={28} aria-hidden="true" />}
@@ -600,7 +600,7 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
 
   if (submitted) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-slate-950 px-5 py-12 text-white">
+      <main className="arkout-print-flow flex min-h-screen items-center justify-center bg-slate-950 px-5 py-12 text-white">
         <section className="w-full max-w-xl rounded-3xl border border-emerald-300/20 bg-white/[0.04] p-8 text-center shadow-2xl sm:p-10">
           <CheckCircle2 size={56} className="mx-auto text-emerald-300" aria-hidden="true" />
           <h1 className="mt-5 text-3xl font-bold">Print submission confirmed</h1>
@@ -613,7 +613,7 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
   }
 
   return (
-    <main className="min-h-screen bg-slate-950 px-4 py-10 text-white sm:px-6">
+    <main className="arkout-print-flow min-h-screen bg-slate-950 px-4 py-10 text-white sm:px-6">
       <div className="mx-auto w-full max-w-3xl">
         <header className="mb-8 flex items-center gap-4">
           <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-cyan-300/20 bg-cyan-300/10 text-cyan-200"><Printer size={28} aria-hidden="true" /></div>
