@@ -90,6 +90,7 @@ export default function ArkoutAdminPage() {
   const [printers, setPrinters] = useState<PrinterReading[]>([]);
   const [history, setHistory] = useState<Json | null>(null);
   const [status, setStatus] = useState<Json | null>(null);
+  const [queueData, setQueueData] = useState<Json | null>(null);
   const [paper, setPaper] = useState<PaperStock | null>(null);
   const [uploadsData, setUploadsData] = useState<Json | null>(null);
   const [revenue, setRevenue] = useState<Json | null>(null);
@@ -108,6 +109,7 @@ export default function ArkoutAdminPage() {
       api("/api/admin/proxy/api/paper-stock"),
       api("/api/admin/proxy/api/uploads/recent"),
       api("/api/admin/proxy/api/revenue/history"),
+      api("/api/admin/proxy/api/printer/queue"),
     ]);
     if (requests[0].status === "fulfilled") setStatus(requests[0].value);
     if (requests[1].status === "fulfilled") {
@@ -126,6 +128,7 @@ export default function ArkoutAdminPage() {
     }
     if (requests[5].status === "fulfilled") setUploadsData(requests[5].value);
     if (requests[6].status === "fulfilled") setRevenue(requests[6].value);
+    if (requests[7].status === "fulfilled") setQueueData(requests[7].value);
     const failures = requests.filter((result) => result.status === "rejected");
     if (failures.length) setError((failures[0] as PromiseRejectedResult).reason instanceof Error
       ? (failures[0] as PromiseRejectedResult).reason.message
@@ -146,6 +149,12 @@ export default function ArkoutAdminPage() {
 
   useEffect(() => { void checkSession(); }, [checkSession]);
 
+  useEffect(() => {
+    if (!auth?.authenticated || !auth.gatewayConfigured) return;
+    const timer = window.setInterval(() => { void loadDashboard(); }, 30000);
+    return () => window.clearInterval(timer);
+  }, [auth?.authenticated, auth?.gatewayConfigured, loadDashboard]);
+
   async function login(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setBusy(true); setError(""); setNotice("");
@@ -165,7 +174,7 @@ export default function ArkoutAdminPage() {
     try {
       await api("/api/admin/auth", { method: "DELETE" });
       setAuth((current) => current ? { ...current, authenticated: false } : current);
-      setPrinters([]); setHistory(null); setStatus(null); setPaper(null); setUploadsData(null); setRevenue(null);
+      setPrinters([]); setHistory(null); setStatus(null); setQueueData(null); setPaper(null); setUploadsData(null); setRevenue(null);
       setNotice("Signed out.");
     } catch (e) { setError(e instanceof Error ? e.message : "Could not sign out."); }
     finally { setBusy(false); }
@@ -291,7 +300,8 @@ export default function ArkoutAdminPage() {
   const transactions = firstDefined(history, ["transactions", "recorded_transactions"]) ?? firstDefined(revenue, ["transactions", "transaction_count"]);
   const pages = firstDefined(history, ["app_recorded_pages", "application_recorded_pages", "total_pages"]);
   const eventCount = Array.isArray(history?.events) ? history.events.length : firstDefined(history, ["event_count"]);
-  const jobs = queueJobs(status);
+  const liveQueueJobs = queueJobs(queueData);
+  const jobs = liveQueueJobs.length ? liveQueueJobs : queueJobs(status);
   const uploads = recentUploads(uploadsData);
   const todayRevenue = firstDefined(revenue, ["today_revenue", "todayRevenue", "revenue_today"]);
   const weekRevenue = firstDefined(revenue, ["week_revenue", "weekly_revenue", "this_week"]);
@@ -351,7 +361,7 @@ export default function ArkoutAdminPage() {
               <div className="admin-metric-grid">
                 <NumberCard label="Recorded transactions" value={scalar(transactions)} detail="Application history" icon={<FileText size={17} />} />
                 <NumberCard label="Recorded pages" value={scalar(pages)} detail="Not a physical lifetime counter" icon={<Printer size={17} />} />
-                <NumberCard label="Queued print jobs" value={String(jobs.length || scalar(firstDefined(status, ["queued_jobs_count", "queue_count"]) ) === "—" ? "—" : jobs.length)} detail="Cancel only jobs still queued" icon={<Activity size={17} />} />
+                <NumberCard label="Queued print jobs" value={jobs.length ? String(jobs.length) : scalar(firstDefined(queueData, ["count", "queued_jobs_count"]) ?? firstDefined(status, ["queued_jobs_count", "queue_count"]))} detail="Cancel only jobs still queued" icon={<Activity size={17} />} />
                 <NumberCard label="Connection" value={status ? "Connected" : "Checking"} detail="Private admin gateway" icon={<Wifi size={17} />} />
               </div>
 
