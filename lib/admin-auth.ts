@@ -21,7 +21,8 @@ export function isAdminGatewayConfigured() {
   const password = process.env.ARKOUT_ADMIN_UPSTREAM_PASSWORD || "";
   const accessClientId = process.env.ARKOUT_ADMIN_ACCESS_CLIENT_ID || "";
   const accessClientSecret = process.env.ARKOUT_ADMIN_ACCESS_CLIENT_SECRET || "";
-  if (!origin || !username || !password || !accessClientId || !accessClientSecret) return false;
+  // Cloudflare Access is optional. If used, both service-token values must be set.
+  if (!origin || !username || !password || Boolean(accessClientId) !== Boolean(accessClientSecret)) return false;
   try {
     const parsed = new URL(origin);
     return parsed.protocol === "https:" && parsed.pathname === "/" && !parsed.search && !parsed.hash;
