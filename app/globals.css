@@ -543,7 +543,7 @@ a { -webkit-tap-highlight-color: transparent; }
 .arkout-adv-portal textarea,
 .arkout-adv-portal select { border: 1px solid #d2d2d7 !important; border-radius: 12px !important; background: #fff !important; color: #1d1d1f !important; }
 .arkout-adv-portal input:focus,
-.arkout-adv-portal textarea,
+.arkout-adv-portal textarea:focus,
 .arkout-adv-portal select:focus { outline: 3px solid rgba(0,113,227,.14); border-color: #0071e3 !important; }
 .arkout-adv-portal [class~="text-red-200"],
 .arkout-adv-portal [class~="text-red-300"] { color: #b42318 !important; }
