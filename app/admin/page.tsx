@@ -1,10 +1,10 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { FormEvent, ReactNode, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import {
-  Activity, AlertTriangle, Archive, CheckCircle2, ChevronRight, FileText, Ink,
+  Activity, AlertTriangle, Archive, CheckCircle2, ChevronRight, FileText,
   LockKeyhole, LogOut, RefreshCw, ShieldCheck, Printer, Settings2, Wifi,
 } from "lucide-react";
 
@@ -29,7 +29,7 @@ async function api(path: string, init?: RequestInit) {
   return data;
 }
 
-function NumberCard({ label, value, detail, icon }: { label: string; value: string; detail?: string; icon: React.ReactNode }) {
+function NumberCard({ label, value, detail, icon }: { label: string; value: string; detail?: string; icon: ReactNode }) {
   return <div className="admin-glass-metric"><div className="admin-metric-top"><span>{label}</span><span className="admin-metric-icon">{icon}</span></div><strong>{value}</strong>{detail && <small>{detail}</small>}</div>;
 }
 
