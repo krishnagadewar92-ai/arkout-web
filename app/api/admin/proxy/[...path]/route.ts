@@ -77,6 +77,8 @@ async function proxy(request: NextRequest, context: RouteContext) {
       method: request.method,
       headers: {
         Authorization: authorization,
+        "CF-Access-Client-Id": process.env.ARKOUT_ADMIN_ACCESS_CLIENT_ID || "",
+        "CF-Access-Client-Secret": process.env.ARKOUT_ADMIN_ACCESS_CLIENT_SECRET || "",
         Accept: "application/json, text/csv, application/pdf",
         ...(body ? { "Content-Type": "application/json" } : {}),
       },
