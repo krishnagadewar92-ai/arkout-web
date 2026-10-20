@@ -485,6 +485,11 @@ export default function ArkoutAdminPage() {
                     {(Array.isArray(history?.events) ? history.events : []).slice(0,20).map((event: Json,index:number) => <div className="admin-event-row" key={String(event.id || event.timestamp || index)}><span>{String(event.timestamp || event.time || "Time not reported")}</span><strong>{String(event.printer_queue || event.printer || "Printer")}</strong><span>{String(event.severity || event.event_type || "Event")}</span><p>{String(event.details || "No details reported")}</p></div>)}
                     {!Array.isArray(history?.events) || history.events.length === 0 ? <p className="admin-muted">No printer-state events returned yet. The monitor records changes from its installation time.</p> : null}
                   </div>
+                  <h3 className="admin-subheading">Recent recorded order failures</h3>
+                  <div className="admin-events-list">
+                    {(Array.isArray(history?.recent_recorded_failures) ? history.recent_recorded_failures : []).map((failure: Json,index:number) => <div className="admin-event-row" key={String(failure.order_id || failure.time || index)}><span>{String(failure.time || "Time not reported")}</span><strong>{String(failure.status || "Order issue")}</strong><span>Order</span><p>{String(failure.details || "No detail returned")}</p></div>)}
+                    {(!Array.isArray(history?.recent_recorded_failures) || history.recent_recorded_failures.length === 0) ? <p className="admin-muted">No failed/error orders or saved order errors reported.</p> : null}
+                  </div>
                   <p className="admin-muted">Application-recorded page totals are not the printers' physical lifetime meters. Paper-jam counts include only explicit CUPS reports.</p>
                 </section>
 
