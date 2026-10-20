@@ -235,7 +235,7 @@ export default function AdvertisementPortalPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#070b14] px-4 py-10 text-slate-100 sm:px-6">
+    <main className="arkout-adv-portal min-h-screen bg-[#070b14] px-4 py-10 text-slate-100 sm:px-6">
       <div className="mx-auto max-w-6xl">
         <header className="mb-10 flex flex-wrap items-center justify-between gap-4 border-b border-white/10 pb-6">
           <a href="/" className="flex items-center gap-3" aria-label="Arkout home">
