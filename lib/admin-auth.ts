@@ -19,7 +19,9 @@ export function isAdminGatewayConfigured() {
   const origin = process.env.ARKOUT_ADMIN_UPSTREAM_URL || "";
   const username = process.env.ARKOUT_ADMIN_UPSTREAM_USERNAME || "";
   const password = process.env.ARKOUT_ADMIN_UPSTREAM_PASSWORD || "";
-  if (!origin || !username || !password) return false;
+  const accessClientId = process.env.ARKOUT_ADMIN_ACCESS_CLIENT_ID || "";
+  const accessClientSecret = process.env.ARKOUT_ADMIN_ACCESS_CLIENT_SECRET || "";
+  if (!origin || !username || !password || !accessClientId || !accessClientSecret) return false;
   try {
     const parsed = new URL(origin);
     return parsed.protocol === "https:" && parsed.pathname === "/" && !parsed.search && !parsed.hash;
