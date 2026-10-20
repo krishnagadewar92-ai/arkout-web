@@ -12,10 +12,32 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-export const metadata = {
-  title: 'Arkout - Modernize Campus Printing',
-  description: 'Fully autonomous, secure, and self-sustaining print kiosk for modern universities.',
-}
+export const metadata: Metadata = {
+  metadataBase: new URL("https://www.arkout.in"),
+  title: {
+    default: "Arkout — Campus printing, simplified",
+    template: "%s — Arkout",
+  },
+  description:
+    "A more considered campus printing experience. Connect to a kiosk, upload your document, review print options, and complete checkout.",
+  applicationName: "Arkout",
+  keywords: ["campus printing", "self-service printing", "college print kiosk", "Arkout PrintPod"],
+  openGraph: {
+    title: "Arkout — Campus printing, simplified",
+    description: "From your screen to the page, Arkout makes campus printing feel simpler.",
+    url: "https://www.arkout.in",
+    siteName: "Arkout",
+    locale: "en_IN",
+    type: "website",
+    images: ["/arkout-logo.png"],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Arkout — Campus printing, simplified",
+    description: "A more considered campus printing experience.",
+    images: ["/arkout-logo.png"],
+  },
+};
 
 export default function RootLayout({
   children,
@@ -23,10 +45,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html
-      lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
-    >
+    <html lang="en" className={geistSans.variable + " " + geistMono.variable + " h-full antialiased"}>
       <body className="min-h-full flex flex-col">{children}</body>
     </html>
   );

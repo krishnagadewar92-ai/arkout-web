@@ -250,7 +250,7 @@ export default function Terminal01LegacyPrintPage() {
 
   if (!isSessionValid) {
     return (
-      <main className="min-h-screen bg-black flex flex-col items-center justify-center p-6 text-center font-sans text-white">
+      <main className="arkout-print-flow min-h-screen bg-black flex flex-col items-center justify-center p-6 text-center font-sans text-white">
         <XCircle size={64} className="text-red-500 mb-6" />
         <h1 className="text-2xl font-semibold mb-2">Session Grabbed</h1>
         <p className="text-zinc-400">{errorMessage}</p>
@@ -259,7 +259,7 @@ export default function Terminal01LegacyPrintPage() {
   }
 
   return (
-    <main className="min-h-screen w-full relative overflow-hidden font-sans text-white flex flex-col items-center justify-center p-4 md:p-6 bg-zinc-950">
+    <main className="arkout-print-flow min-h-screen w-full relative overflow-hidden font-sans text-white flex flex-col items-center justify-center p-4 md:p-6 bg-zinc-950">
       
       {/* BACKGROUND ADVERTISEMENT LAYER */}
       <div className={`absolute inset-0 transition-all duration-700 ease-in-out z-0 flex items-center justify-center overflow-hidden pointer-events-none ${step !== 'verify' ? 'blur-3xl scale-105 opacity-40' : 'blur-none opacity-100'}`}>
