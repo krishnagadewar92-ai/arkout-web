@@ -592,7 +592,8 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
             </div>
           )}
           <div className="mt-6 flex items-start gap-3 text-sm leading-6 text-slate-400"><ShieldCheck size={19} className="mt-0.5 shrink-0 text-cyan-300" aria-hidden="true" /> No new checkout or print submission can be started while maintenance is enabled.</div>
-          <Link href="/" className="mt-8 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-white px-5 py-3 font-semibold text-slate-950 transition hover:bg-slate-200"><ArrowLeft size={17} aria-hidden="true" /> Back to Arkout</Link>
+          <Link href="/print/preview" className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-white/20 px-5 py-3 font-semibold transition hover:bg-white/10"><Printer size={17} aria-hidden="true" /> View safe print interface demo</Link>
+          <Link href="/" className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-white px-5 py-3 font-semibold text-slate-950 transition hover:bg-slate-200"><ArrowLeft size={17} aria-hidden="true" /> Back to Arkout</Link>
         </section>
       </main>
     );
