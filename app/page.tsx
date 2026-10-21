@@ -79,7 +79,7 @@ export default function ArkoutLandingPage() {
         <header className="absolute left-0 right-0 top-0 z-30 border-b border-white/15 bg-black/[.08] backdrop-blur-[2px]">
           <div className="mx-auto flex min-h-[78px] w-[calc(100%-36px)] max-w-[1380px] items-center justify-between gap-4 md:w-[calc(100%-64px)]">
             <Link href="/" className="inline-flex items-center gap-2.5 text-[23px] font-semibold tracking-[-.075em] text-white" aria-label="Arkout home">
-              <Image src="/arkout-logo.png" alt="" width={35} height={35} className="drop-shadow-lg" />
+              <Image src="/favicon.ico" alt="Arkout logo" width={35} height={35} unoptimized className="rounded-full drop-shadow-lg" />
               <span>arkout<span className="text-[#a8bbff]">.</span></span>
             </Link>
             <nav className={(menuOpen ? "flex" : "hidden") + " absolute left-0 right-0 top-full flex-col gap-0 border-b border-white/15 bg-[#090a0d]/95 px-6 pb-5 backdrop-blur-2xl md:static md:flex md:flex-row md:items-center md:gap-9 md:border-0 md:bg-transparent md:p-0"} aria-label="Main navigation">
@@ -252,7 +252,7 @@ export default function ArkoutLandingPage() {
       </section>
 
       <footer className="bg-[#08090c] px-5 py-7 sm:px-8 md:px-[max(32px,calc((100%-1280px)/2))]">
-        <div className="flex flex-wrap items-center gap-4 border-b border-white/10 pb-6"><Link href="/" className="inline-flex items-center gap-2.5 text-[21px] font-semibold tracking-[-.075em] text-white"><Image src="/arkout-logo.png" alt="" width={30} height={30} />arkout<span className="-ml-2 text-[#9dbbff]">.</span></Link><p className="flex-1 text-[10px] text-white/45">Good work, moving forward.</p><Link href="/print" className="inline-flex items-center gap-2 text-[10px] text-white/70 transition hover:text-white">Start printing <ArrowUpRight size={14} /></Link></div>
+        <div className="flex flex-wrap items-center gap-4 border-b border-white/10 pb-6"><Link href="/" className="inline-flex items-center gap-2.5 text-[21px] font-semibold tracking-[-.075em] text-white"><Image src="/favicon.ico" alt="Arkout logo" width={30} height={30} unoptimized className="rounded-full" />arkout<span className="-ml-2 text-[#9dbbff]">.</span></Link><p className="flex-1 text-[10px] text-white/45">Good work, moving forward.</p><Link href="/print" className="inline-flex items-center gap-2 text-[10px] text-white/70 transition hover:text-white">Start printing <ArrowUpRight size={14} /></Link></div>
         <div className="flex flex-wrap items-center justify-between gap-3 pt-5 font-mono text-[8px] text-white/35"><span>© {new Date().getFullYear()} Arkout Techworks Pvt. Ltd.</span><div className="flex gap-5"><a href="#top" className="hover:text-white/80">Back to top ↑</a><a href="mailto:contact@arkout.in" className="hover:text-white/80">Contact</a><Link href="/admin" className="hover:text-white/80">Operations</Link></div><span className="hidden sm:block">Designed around the details.</span></div>
       </footer>
     </main>
