@@ -1,189 +1,59 @@
+"use client";
 import Image from "next/image";
 import Link from "next/link";
-import {
-  ArrowRight, ArrowUpRight, CheckCircle2, CreditCard, FileText, Mail,
-  MessageCircle, Printer, QrCode, ShieldCheck, SlidersHorizontal, UploadCloud,
-} from "lucide-react";
+import { useState } from "react";
+import { ArrowDown, ArrowRight, ArrowUpRight, Check, CheckCircle2, ChevronDown, LockKeyhole, Menu, MonitorSmartphone, QrCode, ShieldCheck, SlidersHorizontal, Sparkles, X, Zap } from "lucide-react";
 
-const heroImage = "/WhatsApp Image 2026-09-20 at 11.30.43 PM (2).jpeg";
-
-const workflowSteps = [
-  { number: "01", title: "Connect", description: "Scan the kiosk QR code or enter the PIN shown on the terminal.", image: "/WhatsApp Image 2026-09-20 at 11.30.43 PM (2).jpeg", icon: QrCode },
-  { number: "02", title: "Upload", description: "Choose your document and let the print flow prepare it.", image: "/WhatsApp Image 2026-09-20 at 11.30.43 PM (1).jpeg", icon: UploadCloud },
-  { number: "03", title: "Choose", description: "Review page count, colour mode, copies and available layout options.", image: "/WhatsApp Image 2026-09-20 at 11.30.44 PM.jpeg", icon: SlidersHorizontal },
-  { number: "04", title: "Pay & collect", description: "Complete checkout and follow the kiosk's on-screen instructions.", image: "/WhatsApp Image 2026-09-20 at 11.30.42 PM (1).jpeg", icon: CreditCard },
+const steps = [
+  { n:"01", title:"Start your session", short:"Scan or enter your PIN", body:"Begin at the kiosk with the QR code or session PIN shown on the terminal.", icon:QrCode },
+  { n:"02", title:"Make it yours", short:"Upload and configure", body:"Choose your document, review available print options, and check the displayed total before checkout.", icon:SlidersHorizontal },
+  { n:"03", title:"Pay, then collect", short:"One clear finish", body:"Complete checkout and follow the kiosk prompts to collect your printed pages.", icon:CheckCircle2 },
 ];
-
-const campusFeatures = [
-  { number: "01", title: "Made for busy campus days.", body: "A self-service path from your own device to a physical print, designed to feel straightforward from the first tap.", icon: Printer },
-  { number: "02", title: "Know your choices before checkout.", body: "Review the available print options and the displayed total before you complete payment.", icon: SlidersHorizontal },
-  { number: "03", title: "Designed around each session.", body: "PIN and QR-based entry help connect the online workflow to the kiosk you're using.", icon: ShieldCheck },
+const features = [
+  { icon:MonitorSmartphone, label:"A CLEARER WORKFLOW", title:"The next step is obvious.", body:"A guided digital journey helps students move from document to print without guessing what to do next." },
+  { icon:ShieldCheck, label:"CHECKOUT WITH CONTEXT", title:"Review before you commit.", body:"Keep available print options and the displayed total in view before completing the payment step." },
+  { icon:Zap, label:"MADE FOR BUSY PLACES", title:"Self-service, at your pace.", body:"A dedicated terminal gives campus communities another way to handle everyday printing." },
 ];
-
+const faqs = [
+  ["How do I start a print job?","Open the print flow, follow the session instructions, upload your document and review available settings before checkout."],
+  ["Do I need to install an app?","The workflow is designed around a browser-based session. Follow the instructions displayed for your terminal."],
+  ["Can our campus bring Arkout to its students?","Campus and institutional teams can contact us to discuss the space, print needs and possible pilot arrangements."],
+];
 export default function ArkoutLandingPage() {
-  return (
-    <main className="arkout-site" id="top">
-      <div className="site-announcement">
-        <span className="site-announcement-dot" aria-hidden="true" />
-        <span>Now live at Pemraj Sarda College</span>
-        <span className="site-announcement-separator" aria-hidden="true">·</span>
-        <a href="#campuses">Discover Arkout <ArrowRight size={13} aria-hidden="true" /></a>
+  const [active,setActive] = useState(0);
+  const [menuOpen,setMenuOpen] = useState(false);
+  const ActiveIcon = steps[active].icon;
+  return <main className="overflow-clip bg-[#0a0b0e] font-sans text-[#eeeeF1] selection:bg-blue-200 selection:text-slate-950">
+    <div className="flex min-h-[34px] flex-wrap items-center justify-center gap-2 bg-[#ccd9f7] px-3 py-2 text-center text-[10px] tracking-wide text-[#172039]"><span className="h-1.5 w-1.5 rounded-full bg-emerald-700 ring-4 ring-emerald-800/10"/>A more thoughtful way to print on campus <span className="opacity-50">/</span><a href="#how-it-works" className="inline-flex items-center gap-1 font-semibold hover:underline">Explore the flow <ArrowRight size={12}/></a></div>
+    <section id="top" className="relative isolate min-h-[790px] overflow-hidden bg-[#090a0e] md:min-h-[min(870px,calc(100svh-34px))]">
+      <Image src="/arkout-kiosk-hero.webp" alt="Concept render of a modern self-service printing kiosk" fill priority sizes="100vw" className="-z-30 object-cover object-[61%_center] opacity-90"/>
+      <div className="absolute inset-0 -z-20 bg-[linear-gradient(90deg,rgba(7,8,11,.99)_0%,rgba(7,8,11,.96)_23%,rgba(7,8,11,.73)_43%,rgba(7,8,11,.08)_78%),linear-gradient(0deg,#090b10_0%,transparent_22%,rgba(9,11,16,.15)_75%)] max-md:bg-[linear-gradient(90deg,rgba(7,8,11,.96),rgba(7,8,11,.67)_60%,rgba(7,8,11,.2)),linear-gradient(0deg,#090b10_0%,rgba(9,11,16,.15)_55%,rgba(9,11,16,.45))]"/>
+      <div aria-hidden="true" className="absolute inset-0 -z-10 opacity-[.11] [background-image:linear-gradient(rgba(255,255,255,.1)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.1)_1px,transparent_1px)] [background-size:90px_90px] [mask-image:linear-gradient(90deg,#000,transparent_75%)]"/>
+      <header className="absolute left-0 right-0 top-0 z-30 border-b border-white/15"><div className="mx-auto flex min-h-[76px] w-[calc(100%-36px)] max-w-[1370px] items-center justify-between gap-4 md:w-[calc(100%-56px)]">
+        <Link href="/" className="inline-flex items-center gap-2.5 text-[23px] font-semibold tracking-[-.075em] text-white" aria-label="Arkout home"><Image src="/arkout-logo.png" alt="" width={34} height={34}/><span>arkout<span className="text-[#9dbbff]">.</span></span></Link>
+        <nav className={(menuOpen?"flex":"hidden")+" absolute left-0 right-0 top-full flex-col gap-0 border-b border-white/15 bg-[#090a0e]/95 px-6 pb-4 backdrop-blur-xl md:static md:flex md:flex-row md:items-center md:gap-9 md:border-0 md:bg-transparent md:p-0"} aria-label="Main navigation"><a onClick={()=>setMenuOpen(false)} href="#how-it-works" className="border-b border-white/10 py-4 text-xs text-white/75 hover:text-white md:border-0 md:py-0">The experience</a><a onClick={()=>setMenuOpen(false)} href="#details" className="border-b border-white/10 py-4 text-xs text-white/75 hover:text-white md:border-0 md:py-0">The product</a><a onClick={()=>setMenuOpen(false)} href="#campuses" className="border-b border-white/10 py-4 text-xs text-white/75 hover:text-white md:border-0 md:py-0">For campuses</a><Link href="/print" onClick={()=>setMenuOpen(false)} className="mt-3 inline-flex min-h-10 items-center justify-between gap-2 rounded-full border border-white/20 px-4 text-xs font-semibold text-white md:hidden">Start printing <ArrowUpRight size={15}/></Link></nav>
+        <div className="flex items-center gap-2"><Link href="/print" className="hidden min-h-10 items-center gap-2 rounded-full border border-white/25 px-4 text-[11px] font-semibold text-white transition hover:-translate-y-0.5 hover:bg-white/10 sm:inline-flex">Start printing <ArrowUpRight size={15}/></Link><button onClick={()=>setMenuOpen(!menuOpen)} aria-label={menuOpen?"Close navigation":"Open navigation"} aria-expanded={menuOpen} className="grid h-10 w-10 place-items-center rounded-full border border-white/20 bg-white/[.04] text-white md:hidden">{menuOpen?<X size={20}/>:<Menu size={20}/>}</button></div>
+      </div></header>
+      <div className="relative z-10 mx-auto w-[calc(100%-38px)] max-w-[1370px] pb-44 pt-[175px] sm:w-[calc(100%-56px)] md:pb-40 md:pt-[clamp(175px,18vh,220px)]">
+        <p className="mb-7 flex flex-wrap items-center gap-3 text-[9px] font-bold tracking-[.17em] text-[#b6c7fa] sm:text-[10px]"><span className="h-px w-7 bg-[#adc3ff]"/>CAMPUS PRINTING, REIMAGINED <span className="ml-auto font-mono font-normal text-white/35 sm:ml-2">01 / 04</span></p>
+        <h1 className="max-w-[720px] text-[clamp(58px,8.8vw,120px)] font-medium leading-[.88] tracking-[-.09em] text-[#f7f7f8]">Good work<br/>shouldn&apos;t wait<br/><span className="font-normal text-[#a3a7b2]">in a queue.</span></h1>
+        <p className="mt-7 max-w-[430px] text-[14px] leading-7 text-white/70 sm:text-[15px]">Meet a simpler way to print on campus. Upload from your device, choose your options, check out, and collect your pages.</p>
+        <div className="mt-8 flex flex-wrap items-center gap-x-7 gap-y-4"><Link href="/print" className="inline-flex min-h-12 items-center justify-center gap-4 rounded-full border border-white bg-[#f0f0f2] px-5 text-xs font-bold text-[#0a0b0e] transition hover:-translate-y-0.5 hover:bg-white">Start printing <ArrowUpRight size={17}/></Link><a href="#how-it-works" className="inline-flex items-center gap-2 text-xs text-white/80 transition hover:text-white">See how it works <ArrowDown size={15}/></a></div>
+        <div className="mt-7 flex max-w-[400px] flex-wrap items-center gap-2 text-[10px] leading-5 text-white/50"><LockKeyhole size={14} className="text-[#b6c7fa]"/>Session-based access <span className="mx-1 text-white/30">·</span> Clear options before checkout</div>
       </div>
-
-      <header className="site-header">
-        <div className="site-header-inner">
-          <Link className="site-brand" href="/" aria-label="Arkout home">
-            <Image src="/arkout-logo.png" alt="" width={42} height={42} priority className="site-brand-logo" />
-            <span>arkout</span>
-          </Link>
-          <nav className="site-nav-links" aria-label="Main navigation">
-            <a href="#how-it-works">How it works</a>
-            <a href="#why-arkout">Why Arkout</a>
-            <a href="#campuses">For campuses</a>
-          </nav>
-          <Link className="site-nav-cta" href="/print">Start printing <ArrowUpRight size={16} aria-hidden="true" /></Link>
-        </div>
-      </header>
-
-      <section className="site-hero" aria-labelledby="hero-title">
-        <div className="site-hero-copy">
-          <p className="site-eyebrow"><span className="site-eyebrow-dot" /> CAMPUS PRINTING, REIMAGINED</p>
-          <h1 id="hero-title">Your work.<br />On paper.<br /><span>Without the wait.</span></h1>
-          <p className="site-hero-description">
-            A calmer way to print on campus. Choose your documents, review the details, and move from screen to paper through one simple flow.
-          </p>
-          <div className="site-hero-actions">
-            <Link className="site-button site-button-primary" href="/print">Start printing <ArrowRight size={17} aria-hidden="true" /></Link>
-            <a className="site-button site-button-secondary" href="#campuses">Bring Arkout to campus</a>
-          </div>
-          <div className="site-hero-assurance"><ShieldCheck size={17} aria-hidden="true" /><span>Clear print choices · Session-based access · Online checkout</span></div>
-        </div>
-
-        <div className="site-hero-art" aria-label="Preview of the Arkout printing experience">
-          <div className="site-hero-glow" aria-hidden="true" />
-          <div className="site-hero-orbit site-hero-orbit-one" aria-hidden="true" />
-          <div className="site-hero-orbit site-hero-orbit-two" aria-hidden="true" />
-          <div className="site-device">
-            <div className="site-device-top">
-              <span className="site-device-lights"><i /><i /><i /></span>
-              <span>ARKOUT PRINTPOD</span>
-              <span className="site-device-menu">•••</span>
-            </div>
-            <div className="site-device-screen">
-              <Image src={encodeURI(heroImage)} alt="A screen from the Arkout kiosk workflow" width={540} height={900} priority sizes="(max-width: 780px) 72vw, 340px" className="site-hero-screen-image" />
-            </div>
-            <div className="site-device-caption"><span className="site-device-status" />A simpler print flow</div>
-          </div>
-          <div className="site-float-card site-float-card-top">
-            <span className="site-float-icon site-float-icon-blue"><QrCode size={19} aria-hidden="true" /></span>
-            <span className="site-float-copy"><strong>One simple start</strong><small>Scan or enter your PIN</small></span>
-          </div>
-          <div className="site-float-card site-float-card-bottom">
-            <span className="site-float-icon site-float-icon-green"><CheckCircle2 size={19} aria-hidden="true" /></span>
-            <span className="site-float-copy"><strong>Review, then print</strong><small>See options before checkout</small></span>
-          </div>
-        </div>
-      </section>
-
-      <section className="site-proof-strip" aria-label="Arkout highlights">
-        <div className="site-proof-item"><QrCode size={19} aria-hidden="true" /><span>QR and PIN access</span></div>
-        <span className="site-proof-divider" aria-hidden="true" />
-        <div className="site-proof-item"><FileText size={19} aria-hidden="true" /><span>Document-first workflow</span></div>
-        <span className="site-proof-divider" aria-hidden="true" />
-        <div className="site-proof-item"><CreditCard size={19} aria-hidden="true" /><span>Online checkout</span></div>
-      </section>
-
-      <section id="how-it-works" className="site-section site-workflow">
-        <div className="site-section-heading">
-          <p className="site-kicker">A FEW CLEAR STEPS</p>
-          <h2>From screen to paper.<br /><span>Made to feel simple.</span></h2>
-          <p>Everything begins with the kiosk in front of you. Here's how the Arkout flow comes together.</p>
-        </div>
-        <div className="site-step-grid">
-          {workflowSteps.map((step) => {
-            const Icon = step.icon;
-            return (
-              <article key={step.number} className="site-step-card">
-                <div className="site-step-meta"><span>{step.number}</span><Icon size={19} aria-hidden="true" /></div>
-                <h3>{step.title}</h3>
-                <p>{step.description}</p>
-                <div className="site-step-image-wrap">
-                  <Image src={encodeURI(step.image)} alt={step.title + " step of the Arkout workflow"} width={440} height={740} sizes="(max-width: 640px) 86vw, (max-width: 1000px) 42vw, 22vw" className="site-step-image" />
-                </div>
-              </article>
-            );
-          })}
-        </div>
-      </section>
-
-      <section id="why-arkout" className="site-campus-section">
-        <div className="site-campus-panel">
-          <div className="site-campus-heading">
-            <p className="site-kicker site-kicker-light">BUILT AROUND CAMPUS LIFE</p>
-            <h2>Less time managing a print job.<br /><span>More time for what’s next.</span></h2>
-            <p>Arkout brings a digital-first workflow to an everyday campus need—without making the process feel complicated.</p>
-          </div>
-          <div className="site-feature-grid">
-            {campusFeatures.map((feature) => {
-              const Icon = feature.icon;
-              return (
-                <article className="site-feature-card" key={feature.number}>
-                  <div className="site-feature-card-top"><Icon size={22} aria-hidden="true" /><span>{feature.number}</span></div>
-                  <h3>{feature.title}</h3>
-                  <p>{feature.body}</p>
-                </article>
-              );
-            })}
-          </div>
-          <div className="site-campus-footnote"><ShieldCheck size={18} aria-hidden="true" /><span>Available capabilities can vary by terminal. The checkout screen shows the options supported by the kiosk you're using.</span></div>
-        </div>
-      </section>
-
-      <section id="campuses" className="site-partner-section">
-        <div className="site-partner-copy">
-          <p className="site-kicker">FOR INSTITUTIONS</p>
-          <h2>Bring a more considered print experience to your campus.</h2>
-          <p>Let's talk about your space, student needs, hardware setup, and what a campus pilot could look like.</p>
-          <a className="site-button site-button-primary" href="mailto:contact@arkout.in">Talk with Arkout <ArrowUpRight size={17} aria-hidden="true" /></a>
-        </div>
-        <div className="site-partner-visual" aria-hidden="true">
-          <div className="site-partner-ring site-partner-ring-one" />
-          <div className="site-partner-ring site-partner-ring-two" />
-          <div className="site-partner-mark"><Image src="/arkout-logo.png" alt="" width={84} height={84} className="site-partner-logo" /></div>
-          <span className="site-partner-tag">A smoother campus essential.</span>
-        </div>
-      </section>
-
-      <section id="contact" className="site-contact-section">
-        <div className="site-contact-heading">
-          <p className="site-kicker">LET'S CONNECT</p>
-          <h2>Have a campus in mind?</h2>
-          <p>For deployments, hardware questions, or partnership proposals, our team is one message away.</p>
-        </div>
-        <div className="site-contact-grid">
-          <a className="site-contact-card" href="mailto:contact@arkout.in">
-            <span className="site-contact-icon"><Mail size={24} aria-hidden="true" /></span>
-            <span className="site-contact-card-title">Email our team</span>
-            <span className="site-contact-card-detail">contact@arkout.in</span>
-            <span className="site-contact-card-arrow"><ArrowUpRight size={17} aria-hidden="true" /></span>
-          </a>
-          <a className="site-contact-card" href="https://wa.me/917758820337" target="_blank" rel="noopener noreferrer">
-            <span className="site-contact-icon site-contact-icon-green"><MessageCircle size={24} aria-hidden="true" /></span>
-            <span className="site-contact-card-title">Chat on WhatsApp</span>
-            <span className="site-contact-card-detail">Quick questions and support</span>
-            <span className="site-contact-card-arrow"><ArrowUpRight size={17} aria-hidden="true" /></span>
-          </a>
-        </div>
-      </section>
-
-      <footer className="site-footer">
-        <div className="site-footer-inner">
-          <Link className="site-brand site-brand-footer" href="/"><Image src="/arkout-logo.png" alt="" width={30} height={30} className="site-brand-logo" /><span>arkout</span></Link>
-          <p>Campus printing, made simpler.</p>
-          <span>© {new Date().getFullYear()} Arkout Techworks Pvt. Ltd.</span>
-        </div>
-        <div className="site-footer-bottom"><a href="#top">Back to top ↑</a><span>Designed for the details.</span></div>
-      </footer>
-    </main>
-  );
+      <div aria-hidden="true" className="pointer-events-none absolute right-[7%] top-[22%] -z-10 aspect-square w-[min(45vw,630px)] rounded-full border border-blue-100/15 shadow-[0_0_120px_rgba(66,105,198,.10),inset_0_0_75px_rgba(100,133,204,.07)] max-md:right-[-10%] max-md:top-[29%] max-md:w-[90vw]"/><div aria-hidden="true" className="pointer-events-none absolute right-[3%] top-[27%] -z-10 aspect-square w-[min(54vw,760px)] rounded-full border border-blue-100/[.07] [transform:rotate(-20deg)_scaleY(.58)] max-md:right-[-20%] max-md:top-[34%] max-md:w-[105vw]"/>
+      <div className="absolute bottom-[20%] right-[5%] z-10 hidden items-center gap-3 rounded-2xl border border-white/20 bg-[#0c0f17]/75 px-4 py-3 shadow-2xl backdrop-blur-xl sm:flex md:bottom-[22%]"><span className="grid h-9 w-9 place-items-center rounded-xl border border-blue-200/20 bg-blue-300/10 text-[#bbcdff]"><QrCode size={18}/></span><span className="grid gap-1"><strong className="text-[11px] font-semibold text-white">Start in seconds</strong><small className="text-[9px] text-white/50">Scan or enter your PIN</small></span><ArrowUpRight size={14} className="ml-2 text-white/45"/></div>
+      <div className="absolute bottom-0 left-0 right-0 flex items-center justify-between gap-3 border-t border-white/15 px-[max(19px,calc((100%-1370px)/2))] py-4 font-mono text-[7px] tracking-[.12em] text-white/40 sm:text-[8px]"><span>SELF-SERVICE PRINTING</span><span className="hidden sm:block">MADE FOR CAMPUS LIFE</span><a href="#idea" className="inline-flex items-center gap-2">SCROLL TO EXPLORE <ArrowDown size={12}/></a></div>
+    </section>
+    <section id="idea" className="bg-[#efeee9] px-5 py-20 text-[#111217] sm:px-8 md:px-[max(32px,calc((100%-1260px)/2))] md:py-32"><div className="flex items-center justify-between gap-3 border-b border-black/15 pb-4 font-mono text-[8px] tracking-[.13em] text-[#6d7078] sm:text-[9px]"><span>THE EVERYDAY, RECONSIDERED</span><span>02 / THE IDEA</span></div><div className="grid gap-8 py-12 md:grid-cols-[1fr_.63fr] md:items-end md:gap-20 md:py-24"><h2 className="text-[clamp(50px,7.4vw,100px)] font-medium leading-[.94] tracking-[-.085em]">One less thing<br/>to wait <em className="font-normal not-italic text-[#7c8089]">for.</em></h2><div className="max-w-[430px]"><p className="text-xl leading-snug tracking-[-.035em] text-[#282b32] sm:text-[22px]">A campus day moves quickly. Printing should fit into it — not hold it up.</p><p className="mt-4 text-[12px] leading-7 text-[#71747b] sm:text-[13px]">Arkout brings the document workflow and the physical printer together in one guided experience, designed to make a familiar task feel more considered.</p><a href="#how-it-works" className="mt-6 inline-flex items-center gap-2 text-xs font-bold text-[#181a1f]">Meet the flow <ArrowRight size={16}/></a></div></div><div className="flex items-center gap-3 border-t border-black/15 pt-4 font-mono text-[7px] tracking-[.13em] text-[#8b8d92] sm:text-[8px]"><span>LESS FRICTION</span><span className="h-px flex-1 bg-black/15"/><span>MORE FLOW</span><span className="h-px flex-1 bg-black/15"/><span className="hidden sm:inline">ONE CLEAR JOURNEY</span></div></section>
+    <section id="how-it-works" className="bg-[#101116] px-5 py-20 sm:px-8 md:px-[max(32px,calc((100%-1260px)/2))] md:py-32"><p className="mb-7 flex items-center justify-between gap-4 font-mono text-[8px] tracking-[.13em] text-[#9eaff0] sm:text-[9px]">A SHORTER ROUTE TO PAPER <span className="text-white/30">03 / THE FLOW</span></p><h2 className="text-[clamp(49px,7vw,91px)] font-medium leading-[.94] tracking-[-.085em]">Three steps.<br/><em className="font-normal not-italic text-[#9a9da7]">Then get on with it.</em></h2><p className="mt-6 max-w-[460px] text-[13px] leading-7 text-[#9a9ba4] sm:text-sm">A guided journey from the device in your hand to the pages you came for.</p>
+      <div className="mt-11 grid gap-8 md:grid-cols-[.75fr_1.25fr] md:gap-16"><div role="tablist" aria-label="Print workflow steps" className="flex flex-col">{steps.map((step,i)=>{const Icon=step.icon;return <button key={step.n} type="button" role="tab" aria-selected={active===i} onClick={()=>setActive(i)} className={"grid w-full grid-cols-[35px_1fr_22px] items-center gap-3 border-t border-white/10 px-1 py-5 text-left transition last:border-b "+(active===i?"translate-x-1.5 text-white":"text-white/50 hover:text-white")}><span className="font-mono text-[10px] text-[#8c9cd1]">{step.n}</span><span className="grid gap-1.5"><strong className="text-sm font-semibold tracking-tight">{step.title}</strong><small className="text-[10px] text-[#858791]">{step.short}</small></span><Icon size={20} className="justify-self-end text-[#8ea8ed]"/></button>;})}<p className="mt-6 flex items-start gap-2 text-[10px] leading-5 text-[#7d7f89]"><ShieldCheck size={15} className="shrink-0 text-[#8ea8ed]"/>Available options are shown by the terminal you use.</p></div>
+      <div role="tabpanel" aria-live="polite" className="flex min-h-[365px] flex-col justify-between rounded-[22px] border border-white/15 bg-[radial-gradient(ellipse_at_55%_40%,rgba(65,101,177,.2),transparent_48%),linear-gradient(145deg,#171923,#101116)] p-5 shadow-2xl sm:p-6"><div className="flex items-center justify-between gap-3 font-mono text-[8px] tracking-[.12em] text-[#797d8d]"><span>ARKOUT / SESSION</span><span className="inline-flex items-center gap-2 text-[#a4b4d9]"><span className="h-1.5 w-1.5 rounded-full bg-emerald-300"/>SECURE FLOW</span></div><div className="relative z-10 mx-auto my-8 max-w-sm text-center"><div className="absolute left-1/2 top-1/2 -z-10 h-64 w-64 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(circle,rgba(67,103,185,.22),rgba(57,83,144,.07)_51%,transparent_70%)]"/><div className="mx-auto mb-5 grid h-[78px] w-[78px] place-items-center rounded-[24px] border border-blue-200/20 bg-gradient-to-br from-blue-200/15 to-blue-900/15 text-[#adc2ff] shadow-[inset_0_1px_0_rgba(255,255,255,.08),0_15px_40px_rgba(46,80,151,.16)]"><ActiveIcon size={36} strokeWidth={1.35}/></div><span className="font-mono text-[8px] tracking-[.16em] text-[#8e9fcd]">STEP {steps[active].n}</span><h3 className="mt-2 text-2xl font-medium tracking-[-.05em] text-[#f2f3f7]">{steps[active].title}</h3><p className="mx-auto mt-3 text-xs leading-7 text-[#9699a6]">{steps[active].body}</p></div><div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/10 pt-4 font-mono text-[8px] text-[#8eaa9a]"><span className="inline-flex items-center gap-1"><Check size={13} className="text-emerald-300"/>Clear prompts</span><span className="inline-flex items-center gap-1"><Check size={13} className="text-emerald-300"/>Guided next step</span><span className="text-white/40">0{active+1} / 03</span></div></div></div>
+    </section>
+    <section id="details" className="grid gap-10 bg-[#e7e5df] px-5 py-20 text-[#121319] sm:px-8 md:grid-cols-[.85fr_1.15fr] md:items-center md:gap-14 md:px-[max(32px,calc((100%-1260px)/2))] md:py-32"><div><p className="mb-7 flex items-center justify-between gap-3 font-mono text-[8px] tracking-[.13em] text-[#4d638d] sm:text-[9px]">A PHYSICAL TOUCHPOINT <span className="text-[#898a8e]">04 / THE PRODUCT</span></p><h2 className="text-[clamp(45px,6.2vw,78px)] font-medium leading-[.94] tracking-[-.085em]">Digital convenience.<br/><em className="font-normal not-italic text-[#7c8089]">Paper in hand.</em></h2><p className="mt-6 max-w-[460px] text-[12px] leading-7 text-[#71737a] sm:text-[13px]">A dedicated print terminal connects a straightforward digital session with the familiar feeling of collecting a finished document.</p><div className="mt-8 max-w-[490px] border-t border-black/15">{[{k:"A",t:"One focused interface",d:"Start, configure, and review in one guided flow."},{k:"B",t:"Options before checkout",d:"See the available choices before you confirm."},{k:"C",t:"Made for shared spaces",d:"A purpose-built experience for campus printing."}].map(x=><div key={x.k} className="flex gap-3.5 border-b border-black/15 py-4"><span className="grid h-7 w-7 shrink-0 place-items-center rounded-full border border-black/20 font-mono text-[9px] text-[#697087]">{x.k}</span><span className="grid gap-1"><strong className="text-xs font-semibold text-[#262930]">{x.t}</strong><small className="text-[11px] leading-5 text-[#777980]">{x.d}</small></span></div>)}</div><Link href="/print" className="mt-7 inline-flex min-h-11 items-center gap-3 rounded-full bg-[#15171d] px-5 text-[11px] font-semibold text-white transition hover:-translate-y-0.5 hover:bg-[#282b33]">Explore print options <ArrowUpRight size={15}/></Link></div><div className="relative min-h-[390px] overflow-hidden rounded-[18px] bg-[#090b10] shadow-[0_35px_90px_rgba(36,43,56,.15)] sm:min-h-[510px]"><Image src="/arkout-kiosk-hero.webp" alt="Illustrative product concept render of a graphite printing kiosk" fill sizes="(max-width:900px) 90vw,48vw" className="object-cover object-[69%_center]"/><div className="absolute inset-0 bg-gradient-to-t from-black/75 via-transparent to-black/5"/><span className="absolute right-4 top-5 font-mono text-[8px] tracking-widest text-white/55 [writing-mode:vertical-rl]">PRINTPOD / CONCEPT</span><div className="absolute bottom-4 left-4 right-4 flex justify-between gap-3 font-mono text-[7px] tracking-[.12em] text-white/60 sm:text-[8px]"><span>ARKOUT PRINTPOD</span><span>PRODUCT CONCEPT VISUAL</span></div></div></section>
+    <section id="why-arkout" className="bg-[#f5f4f0] px-5 py-20 text-[#121319] sm:px-8 md:px-[max(32px,calc((100%-1260px)/2))] md:py-32"><p className="mb-7 flex items-center justify-between gap-4 font-mono text-[8px] tracking-[.13em] text-[#596e99] sm:text-[9px]">DESIGNED AROUND THE DETAILS <span className="text-[#8b8d92]">05 / THE THINKING</span></p><h2 className="max-w-[850px] text-[clamp(45px,6.6vw,86px)] font-medium leading-[.94] tracking-[-.085em]">Simple on the surface.<br/><em className="font-normal not-italic text-[#7c8089]">Thoughtful underneath.</em></h2><div className="mt-10 grid gap-3 md:grid-cols-3">{features.map((item,i)=>{const Icon=item.icon;return <article key={item.title} className="group min-h-[280px] rounded-2xl border border-black/10 bg-white/40 p-5 transition duration-300 hover:-translate-y-1 hover:border-black/20 hover:bg-white sm:p-6"><div className="flex items-center justify-between text-[#526a9b]"><Icon size={22} strokeWidth={1.5}/><span className="font-mono text-[9px] text-[#999ba0]">0{i+1}</span></div><p className="mb-2 mt-10 text-[9px] font-semibold tracking-[.1em] text-[#7b7d83]">{item.label}</p><h3 className="text-[21px] font-medium leading-tight tracking-[-.05em] text-[#1a1c22]">{item.title}</h3><div className="my-5 h-px bg-black/10"/><p className="text-[11px] leading-6 text-[#74767e]">{item.body}</p></article>;})}</div></section>
+    <section id="campuses" className="relative isolate grid gap-4 overflow-hidden bg-[#0d0e12] px-5 py-20 sm:px-8 md:grid-cols-[1fr_.7fr] md:items-center md:px-[max(32px,calc((100%-1260px)/2))] md:py-32"><div aria-hidden="true" className="absolute inset-0 -z-10 opacity-10 [background-image:linear-gradient(rgba(255,255,255,.11)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.11)_1px,transparent_1px)] [background-size:72px_72px] [mask-image:linear-gradient(90deg,#000,transparent_90%)]"/><div><p className="mb-7 flex flex-wrap items-center justify-between gap-3 font-mono text-[8px] tracking-[.13em] text-[#9eaff0] sm:text-[9px]">FOR CAMPUSES & INSTITUTIONS <span className="text-white/30">06 / WHAT&apos;S NEXT</span></p><h2 className="text-[clamp(51px,7vw,87px)] font-medium leading-[.93] tracking-[-.085em] text-[#f2f2f4]">Make room for<br/><em className="font-normal not-italic text-[#9a9da7]">what comes next.</em></h2><p className="mt-6 max-w-[450px] text-[12px] leading-7 text-[#a0a2ac] sm:text-[13px]">Exploring self-service printing for your campus? Let&apos;s talk about your space, student needs, and what a pilot could look like.</p><div className="mt-8 flex flex-wrap items-center gap-5"><a href="mailto:contact@arkout.in?subject=Arkout%20campus%20pilot" className="inline-flex min-h-12 items-center gap-4 rounded-full border border-white bg-[#f0f0f2] px-5 text-xs font-bold text-[#0a0b0e] transition hover:-translate-y-0.5 hover:bg-white">Talk with Arkout <ArrowUpRight size={16}/></a><a href="https://wa.me/917758820337" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-[11px] text-white/75 hover:text-white">Ask us a question <ArrowRight size={15}/></a></div></div><div aria-hidden="true" className="relative grid min-h-[250px] place-items-center overflow-hidden sm:min-h-[320px]"><div className="absolute h-[270px] w-[270px] rounded-full bg-[radial-gradient(circle,rgba(104,137,219,.22),rgba(58,72,114,.08)_48%,transparent_72%)] blur-md"/><div className="absolute h-[230px] w-[230px] rounded-full border border-blue-100/20 [transform:rotate(-24deg)_scaleY(.58)]"/><div className="absolute h-[300px] w-[300px] rounded-full border border-blue-100/10 [transform:rotate(24deg)_scaleY(.58)]"/><div className="flex items-end text-[140px] font-medium leading-[.8] tracking-[-.14em] text-[#f0f2fa] drop-shadow-[0_0_70px_rgba(112,145,225,.32)]">a<span className="text-[#9cb7ff]">.</span></div><div className="absolute bottom-2 right-0 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[.04] px-4 py-2.5 text-[9px] text-[#bbbfd0] backdrop-blur-xl"><Sparkles size={14} className="text-[#afc2ff]"/>A smoother campus essential</div></div></section>
+    <section className="grid gap-10 bg-[#e7e5df] px-5 py-20 text-[#121319] sm:px-8 md:grid-cols-[.8fr_1.2fr] md:gap-20 md:px-[max(32px,calc((100%-1260px)/2))] md:py-28"><div><p className="mb-7 flex items-center justify-between gap-4 font-mono text-[8px] tracking-[.13em] text-[#596e99] sm:text-[9px]">A FEW GOOD QUESTIONS <span className="text-[#898b90]">07 / FAQ</span></p><h2 className="text-[clamp(47px,6vw,76px)] font-medium leading-[.94] tracking-[-.085em]">Before you<br/><em className="font-normal not-italic text-[#7c8089]">get printing.</em></h2></div><div className="border-t border-black/15">{faqs.map(([q,a])=><details key={q} className="group border-b border-black/15"><summary className="flex cursor-pointer list-none items-center justify-between gap-4 py-5 text-[12px] font-semibold text-[#262830] sm:text-[13px]">{q}<ChevronDown size={17} className="shrink-0 transition group-open:rotate-180"/></summary><p className="max-w-[600px] pb-6 pr-8 text-[11px] leading-7 text-[#6d7078] sm:text-xs">{a}</p></details>)}</div></section>
+    <footer className="bg-[#08090c] px-5 py-7 sm:px-8 md:px-[max(32px,calc((100%-1260px)/2))]"><div className="flex flex-wrap items-center gap-4 border-b border-white/10 pb-6"><Link href="/" className="inline-flex items-center gap-2.5 text-[21px] font-semibold tracking-[-.075em] text-white"><Image src="/arkout-logo.png" alt="" width={30} height={30}/>arkout<span className="-ml-2 text-[#9dbbff]">.</span></Link><p className="flex-1 text-[10px] text-white/45">Good work, moving forward.</p><Link href="/print" className="inline-flex items-center gap-2 text-[10px] text-white/70 hover:text-white">Start printing <ArrowUpRight size={14}/></Link></div><div className="flex flex-wrap items-center justify-between gap-3 pt-5 font-mono text-[8px] text-white/35"><span>© {new Date().getFullYear()} Arkout Techworks Pvt. Ltd.</span><div className="flex gap-5"><a href="#top" className="hover:text-white/80">Back to top ↑</a><a href="mailto:contact@arkout.in" className="hover:text-white/80">Contact</a></div><span className="hidden sm:block">Designed around the details.</span></div></footer>
+  </main>;
 }
