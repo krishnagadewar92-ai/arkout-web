@@ -99,20 +99,20 @@ export default function ArkoutLandingPage() {
           <motion.div {...reveal} transition={{ duration: reducedMotion ? 0 : .75, ease: [.2,.75,.25,1] }} viewport={{ once: true, amount: .2 }} className="max-w-[750px]">
             <p className="mb-8 flex flex-wrap items-center gap-3 text-[9px] font-bold tracking-[.18em] text-[#bdcbff] sm:text-[10px]"><span className="h-px w-7 bg-[#bdcbff]" />CAMPUS PRINTING, REIMAGINED <span className="ml-auto font-mono font-normal text-white/35 md:ml-3">01 — THE IDEA</span></p>
             <h1 className="max-w-[760px] text-[clamp(62px,9.1vw,126px)] font-medium leading-[.83] tracking-[-.092em] text-[#f6f6f7]">
-              {["Good work", "shouldn&apos;t wait", "in a queue."].map((line, index) => (
-                <motion.span key={line} initial={reducedMotion ? false : { opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: reducedMotion ? 0 : .12 + index * .13, duration: reducedMotion ? 0 : .7, ease: [.2, .75, .25, 1] }} className={"block " + (index === 2 ? "font-normal text-[#a7abb7]" : "")}>{index === 1 ? <>shouldn&apos;t wait</> : line}</motion.span>
-              ))}
+              <motion.span initial={reducedMotion ? false : { opacity: 0, y: 22 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: reducedMotion ? 0 : .1, duration: reducedMotion ? 0 : .65, ease: "easeOut" }} className="block">Good work</motion.span>
+              <motion.span initial={reducedMotion ? false : { opacity: 0, y: 22 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: reducedMotion ? 0 : .22, duration: reducedMotion ? 0 : .65, ease: "easeOut" }} className="block">shouldn&apos;t wait</motion.span>
+              <motion.span initial={reducedMotion ? false : { opacity: 0, y: 22 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: reducedMotion ? 0 : .34, duration: reducedMotion ? 0 : .65, ease: "easeOut" }} className="block font-normal text-[#a7abb7]">in a queue.</motion.span>
             </h1>
             <p className="mt-8 max-w-[420px] text-[14px] leading-7 text-white/66 sm:text-[15px]">A more considered way to print on campus. Upload from your device, choose your options, check out, and collect your pages.</p>
             <div className="mt-8 flex flex-wrap items-center gap-x-7 gap-y-4">
-              <Link href="/print" className="group inline-flex min-h-12 items-center justify-center gap-4 rounded-full bg-[#f0f1f5] px-5 text-xs font-bold text-[#0b0c10] transition duration-300 hover:-translate-y-0.5 hover:bg-white">Start printing <motion.span whileHover={reducedMotion ? undefined : { x: 2, y: -2 }} transition={{ type: "spring", stiffness: 360, damping: 18 }} className="inline-flex"><ArrowUpRight size={16} /></motion.span></Link>
+              <Link href="/print" className="group inline-flex min-h-12 items-center justify-center gap-4 rounded-full bg-[#f0f1f5] px-5 text-xs font-bold text-[#0b0c10] transition duration-300 hover:-translate-y-0.5 hover:bg-white">Start printing <ArrowUpRight size={16} className="transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" /></Link>
               <a href="#experience" className="inline-flex items-center gap-2 text-xs text-white/75 transition hover:text-white">Explore the experience <ArrowDown size={14} /></a>
             </div>
             <div className="mt-7 flex max-w-[430px] flex-wrap items-center gap-2 text-[10px] leading-5 text-white/45"><LockKeyhole size={13} className="text-[#bdcbff]" />Session-based access <span className="mx-1 text-white/20">·</span> Clear choices before checkout</div>
           </motion.div>
         </div>
 
-        <motion.div initial={reducedMotion ? false : { opacity: 0, y: 14 }} animate={reducedMotion ? { opacity: 1, y: 0 } : { opacity: 1, y: [0, -5, 0] }} transition={reducedMotion ? { duration: 0 } : { delay: .5, duration: 5.8, repeat: Infinity, ease: "easeInOut" }} className="absolute bottom-[17%] right-[5%] z-10 hidden items-center gap-3 rounded-2xl border border-white/20 bg-[#0b0e16]/75 px-4 py-3 shadow-2xl backdrop-blur-xl sm:flex md:bottom-[19%] md:right-[7%]">
+        <motion.div initial={reducedMotion ? false : { opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} whileHover={reducedMotion ? undefined : { y: -3 }} transition={{ delay: .5, duration: .65, ease: "easeOut" }} className="absolute bottom-[17%] right-[5%] z-10 hidden items-center gap-3 rounded-2xl border border-white/20 bg-[#0b0e16]/75 px-4 py-3 shadow-2xl backdrop-blur-xl sm:flex md:bottom-[19%] md:right-[7%]">
           <span className="grid h-10 w-10 place-items-center rounded-xl border border-blue-200/20 bg-blue-300/10 text-[#bdcbff]"><QrCode size={19} /></span>
           <span className="grid gap-1"><strong className="text-[11px] font-semibold text-white">Start in seconds</strong><small className="text-[9px] text-white/50">Scan or enter your PIN</small></span>
           <ArrowUpRight size={14} className="ml-3 text-white/40" />
