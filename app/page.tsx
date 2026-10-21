@@ -139,7 +139,7 @@ export default function ArkoutLandingPage() {
             { number: "03", title: "Get on with it", text: "Follow the kiosk prompts and collect your pages.", icon: Check },
           ].map((item, index) => {
             const Icon = item.icon;
-            return <motion.article key={item.number} {...reveal} transition={{ duration: reducedMotion ? 0 : .65, delay: index * .08 }} viewport={{ once: true, amount: .2 }} className="group min-h-[206px] bg-[#f5f4ef] p-5 transition-colors hover:bg-white sm:p-7" whileHover={reducedMotion ? undefined : { y: -4 }} transition={{ duration: .25, ease: "easeOut" }}>
+            return <motion.article key={item.number} {...reveal} transition={{ duration: reducedMotion ? 0 : .65, delay: index * .08 }} viewport={{ once: true, amount: .2 }} className="group min-h-[206px] bg-[#f5f4ef] p-5 transition-colors hover:bg-white sm:p-7" whileHover={reducedMotion ? undefined : { y: -4 }}>
               <div className="flex items-center justify-between"><Icon size={20} className="text-[#526a9b]" strokeWidth={1.6} /><span className="font-mono text-[9px] text-[#92949b]">{item.number} / 03</span></div>
               <h3 className="mt-11 text-[20px] font-medium tracking-[-.055em]">{item.title}</h3><p className="mt-2 max-w-[250px] text-[11px] leading-6 text-[#73767d]">{item.text}</p>
             </motion.article>;
@@ -224,7 +224,7 @@ export default function ArkoutLandingPage() {
               { icon: ShieldCheck, title: "A clear session", body: "A focused start, connected to the kiosk you're using." },
               { icon: CreditCard, title: "Review then checkout", body: "Available options and the displayed total before you confirm." },
               { icon: Zap, title: "A guided flow", body: "Prompts designed to help you know what comes next." },
-            ].map((item, index) => { const Icon = item.icon; return <motion.article key={item.title} {...reveal} transition={{ duration: reducedMotion ? 0 : .55, delay: index * .07 }} viewport={{ once: true, amount: .2 }} className="rounded-xl border border-black/10 bg-white/45 p-4 transition duration-300 hover:-translate-y-1 hover:bg-white/85 sm:p-5" whileHover={reducedMotion ? undefined : { y: -4 }} transition={{ duration: .24, ease: "easeOut" }}><Icon size={20} strokeWidth={1.6} className="text-[#536da8]" /><h3 className="mt-8 text-[12px] font-semibold">{item.title}</h3><p className="mt-2 text-[10px] leading-6 text-[#777a82]">{item.body}</p></motion.article>; })}
+            ].map((item, index) => { const Icon = item.icon; return <motion.article key={item.title} {...reveal} transition={{ duration: reducedMotion ? 0 : .55, delay: index * .07 }} viewport={{ once: true, amount: .2 }} className="rounded-xl border border-black/10 bg-white/45 p-4 transition duration-300 hover:-translate-y-1 hover:bg-white/85 sm:p-5" whileHover={reducedMotion ? undefined : { y: -4 }}><Icon size={20} strokeWidth={1.6} className="text-[#536da8]" /><h3 className="mt-8 text-[12px] font-semibold">{item.title}</h3><p className="mt-2 text-[10px] leading-6 text-[#777a82]">{item.body}</p></motion.article>; })}
           </div>
         </div>
       </section>
