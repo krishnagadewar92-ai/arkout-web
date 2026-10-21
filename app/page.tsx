@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
-import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { AnimatePresence, motion, useMotionValue, useReducedMotion, useSpring, useScroll, useTransform } from "framer-motion";
 import {
   ArrowDown, ArrowRight, ArrowUpRight, Check, ChevronDown, CreditCard,
   FileText, Layers3, LockKeyhole, Menu, Monitor, Printer, QrCode,
@@ -54,6 +54,22 @@ export default function ArkoutLandingPage() {
   const [activeDetail, setActiveDetail] = useState("display");
   const [menuOpen, setMenuOpen] = useState(false);
   const reducedMotion = useReducedMotion();
+  const pointerX = useMotionValue(0);
+  const pointerY = useMotionValue(0);
+  const springPointerX = useSpring(pointerX, { stiffness: 48, damping: 19, mass: 0.7 });
+  const springPointerY = useSpring(pointerY, { stiffness: 48, damping: 19, mass: 0.7 });
+  const heroImageX = useTransform(springPointerX, [-1, 1], [-13, 13]);
+  const heroImageY = useTransform(springPointerY, [-1, 1], [-8, 8]);
+  const heroOrbitRotate = useTransform(springPointerX, [-1, 1], [-5, 5]);
+  const { scrollYProgress } = useScroll();
+  const scrollWidth = useTransform(scrollYProgress, [0, 1], ["0%", "100%"]);
+  const handleHeroPointerMove = (event: React.PointerEvent<HTMLElement>) => {
+    if (event.pointerType === "touch" || reducedMotion) return;
+    const bounds = event.currentTarget.getBoundingClientRect();
+    pointerX.set(((event.clientX - bounds.left) / bounds.width - 0.5) * 2);
+    pointerY.set(((event.clientY - bounds.top) / bounds.height - 0.5) * 2);
+  };
+  const resetHeroPointer = () => { pointerX.set(0); pointerY.set(0); };
   const step = workflow[activeStep];
   const StepIcon = step.icon;
   const detail = productDetails.find((item) => item.id === activeDetail) ?? productDetails[0];
@@ -63,6 +79,7 @@ export default function ArkoutLandingPage() {
 
   return (
     <main id="top" className="overflow-clip bg-[#090a0d] font-sans text-[#f2f2f4] selection:bg-[#bdccff] selection:text-[#10131b]">
+      <motion.div aria-hidden="true" style={{ width: scrollWidth }} className="pointer-events-none fixed left-0 top-0 z-[80] h-[2px] bg-[#bdcbff] shadow-[0_0_18px_rgba(189,203,255,.75)]" />
       <div className="relative z-40 flex min-h-[34px] flex-wrap items-center justify-center gap-2 bg-[#dbe4fa] px-3 py-2 text-center text-[10px] tracking-wide text-[#202a43]">
         <span className="h-1.5 w-1.5 rounded-full bg-emerald-700 ring-4 ring-emerald-800/10" />
         Campus printing, rethought for the everyday
@@ -70,10 +87,16 @@ export default function ArkoutLandingPage() {
         <a href="#experience" className="inline-flex items-center gap-1 font-semibold hover:underline">Take a closer look <ArrowRight size={12} /></a>
       </div>
 
-      <section className="relative isolate min-h-[790px] overflow-hidden bg-[#090a0d] md:min-h-[min(900px,calc(100svh-34px))]">
-        <Image src="/arkout-kiosk-hero.webp" alt="Concept render of a modern self-service printing kiosk" fill priority sizes="100vw" className="-z-30 object-cover object-[65%_center] opacity-90" />
+      <section onPointerMove={handleHeroPointerMove} onPointerLeave={resetHeroPointer} onPointerCancel={resetHeroPointer} className="relative isolate min-h-[790px] overflow-hidden bg-[#090a0d] md:min-h-[min(900px,calc(100svh-34px))]">
+        <motion.div aria-hidden="true" style={{ x: heroImageX, y: heroImageY, scale: 1.055 }} className="absolute -inset-5 -z-30">
+          <Image src="/arkout-kiosk-hero.webp" alt="Concept render of a modern self-service printing kiosk" fill priority sizes="100vw" className="object-cover object-[65%_center] opacity-90" />
+        </motion.div>
         <div className="absolute inset-0 -z-20 bg-[linear-gradient(90deg,#08090d_0%,rgba(8,9,13,.98)_21%,rgba(8,9,13,.88)_38%,rgba(8,9,13,.30)_68%,rgba(8,9,13,.05)_100%),linear-gradient(0deg,#090a0d_0%,transparent_30%,rgba(9,10,13,.25)_100%)] max-md:bg-[linear-gradient(90deg,rgba(8,9,13,.92),rgba(8,9,13,.64)_55%,rgba(8,9,13,.25)),linear-gradient(0deg,#090a0d_0%,rgba(9,10,13,.06)_50%,rgba(9,10,13,.48)_100%)]" />
         <div aria-hidden="true" className="absolute inset-0 -z-10 opacity-[.10] [background-image:linear-gradient(rgba(255,255,255,.12)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.12)_1px,transparent_1px)] [background-size:78px_78px] [mask-image:linear-gradient(90deg,#000,transparent_88%)]" />
+        <motion.div aria-hidden="true" style={{ rotate: heroOrbitRotate }} className="pointer-events-none absolute right-[5%] top-[21%] z-0 hidden aspect-square w-[min(45vw,600px)] rounded-full border border-blue-100/[.12] shadow-[0_0_100px_rgba(86,125,221,.09),inset_0_0_55px_rgba(113,145,228,.035)] lg:block" />
+        <div aria-hidden="true" className="pointer-events-none absolute right-[12%] top-[26%] z-0 hidden h-[44%] w-px overflow-hidden bg-white/[.09] lg:block">
+          <motion.span animate={reducedMotion ? undefined : { y: ["-30%", "125%"] }} transition={{ duration: 4.8, repeat: Infinity, ease: "easeInOut" }} className="block h-[24%] w-full bg-gradient-to-b from-transparent via-[#c1d1ff] to-transparent shadow-[0_0_13px_rgba(193,209,255,.8)]" />
+        </div>
         <header className="absolute left-0 right-0 top-0 z-30 border-b border-white/15 bg-black/[.08] backdrop-blur-[2px]">
           <div className="mx-auto flex min-h-[78px] w-[calc(100%-36px)] max-w-[1380px] items-center justify-between gap-4 md:w-[calc(100%-64px)]">
             <Link href="/" className="inline-flex items-center gap-2.5 text-[23px] font-semibold tracking-[-.075em] text-white" aria-label="Arkout home">
