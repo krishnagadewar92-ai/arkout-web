@@ -71,7 +71,9 @@ export default function ArkoutLandingPage() {
       </div>
 
       <section className="relative isolate min-h-[790px] overflow-hidden bg-[#090a0d] md:min-h-[min(900px,calc(100svh-34px))]">
-        <Image src="/arkout-kiosk-hero.webp" alt="Concept render of a modern self-service printing kiosk" fill priority sizes="100vw" className="-z-30 object-cover object-[65%_center] opacity-90" />
+        <motion.div aria-hidden="true" className="absolute -inset-2 -z-30" animate={reducedMotion ? undefined : { y: [0, -5, 0], scale: [1.015, 1.035, 1.015] }} transition={{ duration: 16, repeat: Infinity, ease: "easeInOut" }}>
+          <Image src="/arkout-kiosk-hero.webp" alt="Concept render of a modern self-service printing kiosk" fill priority sizes="100vw" className="object-cover object-[65%_center] opacity-90" />
+        </motion.div>
         <div className="absolute inset-0 -z-20 bg-[linear-gradient(90deg,#08090d_0%,rgba(8,9,13,.98)_21%,rgba(8,9,13,.88)_38%,rgba(8,9,13,.30)_68%,rgba(8,9,13,.05)_100%),linear-gradient(0deg,#090a0d_0%,transparent_30%,rgba(9,10,13,.25)_100%)] max-md:bg-[linear-gradient(90deg,rgba(8,9,13,.92),rgba(8,9,13,.64)_55%,rgba(8,9,13,.25)),linear-gradient(0deg,#090a0d_0%,rgba(9,10,13,.06)_50%,rgba(9,10,13,.48)_100%)]" />
         <div aria-hidden="true" className="absolute inset-0 -z-10 opacity-[.10] [background-image:linear-gradient(rgba(255,255,255,.12)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.12)_1px,transparent_1px)] [background-size:78px_78px] [mask-image:linear-gradient(90deg,#000,transparent_88%)]" />
         <header className="absolute left-0 right-0 top-0 z-30 border-b border-white/15 bg-black/[.08] backdrop-blur-[2px]">
@@ -96,17 +98,21 @@ export default function ArkoutLandingPage() {
         <div className="relative z-10 mx-auto grid w-[calc(100%-38px)] max-w-[1380px] pb-52 pt-[178px] sm:w-[calc(100%-64px)] md:min-h-[760px] md:items-center md:pb-40 md:pt-32">
           <motion.div {...reveal} transition={{ duration: reducedMotion ? 0 : .75, ease: [.2,.75,.25,1] }} viewport={{ once: true, amount: .2 }} className="max-w-[750px]">
             <p className="mb-8 flex flex-wrap items-center gap-3 text-[9px] font-bold tracking-[.18em] text-[#bdcbff] sm:text-[10px]"><span className="h-px w-7 bg-[#bdcbff]" />CAMPUS PRINTING, REIMAGINED <span className="ml-auto font-mono font-normal text-white/35 md:ml-3">01 — THE IDEA</span></p>
-            <h1 className="max-w-[760px] text-[clamp(62px,9.1vw,126px)] font-medium leading-[.83] tracking-[-.092em] text-[#f6f6f7]">Good work<br />shouldn&apos;t wait<br /><span className="font-normal text-[#a7abb7]">in a queue.</span></h1>
+            <h1 className="max-w-[760px] text-[clamp(62px,9.1vw,126px)] font-medium leading-[.83] tracking-[-.092em] text-[#f6f6f7]">
+              {["Good work", "shouldn&apos;t wait", "in a queue."].map((line, index) => (
+                <motion.span key={line} initial={reducedMotion ? false : { opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: reducedMotion ? 0 : .12 + index * .13, duration: reducedMotion ? 0 : .7, ease: [.2, .75, .25, 1] }} className={"block " + (index === 2 ? "font-normal text-[#a7abb7]" : "")}>{index === 1 ? <>shouldn&apos;t wait</> : line}</motion.span>
+              ))}
+            </h1>
             <p className="mt-8 max-w-[420px] text-[14px] leading-7 text-white/66 sm:text-[15px]">A more considered way to print on campus. Upload from your device, choose your options, check out, and collect your pages.</p>
             <div className="mt-8 flex flex-wrap items-center gap-x-7 gap-y-4">
-              <Link href="/print" className="group inline-flex min-h-12 items-center justify-center gap-4 rounded-full bg-[#f0f1f5] px-5 text-xs font-bold text-[#0b0c10] transition duration-300 hover:-translate-y-0.5 hover:bg-white">Start printing <ArrowUpRight size={16} className="transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" /></Link>
+              <Link href="/print" className="group inline-flex min-h-12 items-center justify-center gap-4 rounded-full bg-[#f0f1f5] px-5 text-xs font-bold text-[#0b0c10] transition duration-300 hover:-translate-y-0.5 hover:bg-white">Start printing <motion.span whileHover={reducedMotion ? undefined : { x: 2, y: -2 }} transition={{ type: "spring", stiffness: 360, damping: 18 }} className="inline-flex"><ArrowUpRight size={16} /></motion.span></Link>
               <a href="#experience" className="inline-flex items-center gap-2 text-xs text-white/75 transition hover:text-white">Explore the experience <ArrowDown size={14} /></a>
             </div>
             <div className="mt-7 flex max-w-[430px] flex-wrap items-center gap-2 text-[10px] leading-5 text-white/45"><LockKeyhole size={13} className="text-[#bdcbff]" />Session-based access <span className="mx-1 text-white/20">·</span> Clear choices before checkout</div>
           </motion.div>
         </div>
 
-        <motion.div initial={reducedMotion ? false : { opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: .5, duration: .65 }} className="absolute bottom-[17%] right-[5%] z-10 hidden items-center gap-3 rounded-2xl border border-white/20 bg-[#0b0e16]/75 px-4 py-3 shadow-2xl backdrop-blur-xl sm:flex md:bottom-[19%] md:right-[7%]">
+        <motion.div initial={reducedMotion ? false : { opacity: 0, y: 14 }} animate={reducedMotion ? { opacity: 1, y: 0 } : { opacity: 1, y: [0, -5, 0] }} transition={reducedMotion ? { duration: 0 } : { delay: .5, duration: 5.8, repeat: Infinity, ease: "easeInOut" }} className="absolute bottom-[17%] right-[5%] z-10 hidden items-center gap-3 rounded-2xl border border-white/20 bg-[#0b0e16]/75 px-4 py-3 shadow-2xl backdrop-blur-xl sm:flex md:bottom-[19%] md:right-[7%]">
           <span className="grid h-10 w-10 place-items-center rounded-xl border border-blue-200/20 bg-blue-300/10 text-[#bdcbff]"><QrCode size={19} /></span>
           <span className="grid gap-1"><strong className="text-[11px] font-semibold text-white">Start in seconds</strong><small className="text-[9px] text-white/50">Scan or enter your PIN</small></span>
           <ArrowUpRight size={14} className="ml-3 text-white/40" />
@@ -133,7 +139,7 @@ export default function ArkoutLandingPage() {
             { number: "03", title: "Get on with it", text: "Follow the kiosk prompts and collect your pages.", icon: Check },
           ].map((item, index) => {
             const Icon = item.icon;
-            return <motion.article key={item.number} {...reveal} transition={{ duration: reducedMotion ? 0 : .65, delay: index * .08 }} viewport={{ once: true, amount: .2 }} className="group min-h-[206px] bg-[#f5f4ef] p-5 transition-colors hover:bg-white sm:p-7">
+            return <motion.article key={item.number} {...reveal} transition={{ duration: reducedMotion ? 0 : .65, delay: index * .08 }} viewport={{ once: true, amount: .2 }} className="group min-h-[206px] bg-[#f5f4ef] p-5 transition-colors hover:bg-white sm:p-7" whileHover={reducedMotion ? undefined : { y: -4 }} transition={{ duration: .25, ease: "easeOut" }}>
               <div className="flex items-center justify-between"><Icon size={20} className="text-[#526a9b]" strokeWidth={1.6} /><span className="font-mono text-[9px] text-[#92949b]">{item.number} / 03</span></div>
               <h3 className="mt-11 text-[20px] font-medium tracking-[-.055em]">{item.title}</h3><p className="mt-2 max-w-[250px] text-[11px] leading-6 text-[#73767d]">{item.text}</p>
             </motion.article>;
@@ -218,7 +224,7 @@ export default function ArkoutLandingPage() {
               { icon: ShieldCheck, title: "A clear session", body: "A focused start, connected to the kiosk you're using." },
               { icon: CreditCard, title: "Review then checkout", body: "Available options and the displayed total before you confirm." },
               { icon: Zap, title: "A guided flow", body: "Prompts designed to help you know what comes next." },
-            ].map((item, index) => { const Icon = item.icon; return <motion.article key={item.title} {...reveal} transition={{ duration: reducedMotion ? 0 : .55, delay: index * .07 }} viewport={{ once: true, amount: .2 }} className="rounded-xl border border-black/10 bg-white/45 p-4 transition duration-300 hover:-translate-y-1 hover:bg-white/85 sm:p-5"><Icon size={20} strokeWidth={1.6} className="text-[#536da8]" /><h3 className="mt-8 text-[12px] font-semibold">{item.title}</h3><p className="mt-2 text-[10px] leading-6 text-[#777a82]">{item.body}</p></motion.article>; })}
+            ].map((item, index) => { const Icon = item.icon; return <motion.article key={item.title} {...reveal} transition={{ duration: reducedMotion ? 0 : .55, delay: index * .07 }} viewport={{ once: true, amount: .2 }} className="rounded-xl border border-black/10 bg-white/45 p-4 transition duration-300 hover:-translate-y-1 hover:bg-white/85 sm:p-5" whileHover={reducedMotion ? undefined : { y: -4 }} transition={{ duration: .24, ease: "easeOut" }}><Icon size={20} strokeWidth={1.6} className="text-[#536da8]" /><h3 className="mt-8 text-[12px] font-semibold">{item.title}</h3><p className="mt-2 text-[10px] leading-6 text-[#777a82]">{item.body}</p></motion.article>; })}
           </div>
         </div>
       </section>
