@@ -290,24 +290,6 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
           }
         }
 
-        const maintenanceResponse = await fetch(apiUrl("/api/maintenance"), {
-          cache: "no-store",
-        });
-        if (!maintenanceResponse.ok) {
-          throw new Error("Terminal 02 availability could not be confirmed. Do not pay again; check any existing order when service returns.");
-        }
-        const maintenance = await parseResponse(maintenanceResponse);
-        if (cancelled) return;
-
-        if (maintenance.enabled === true) {
-          setMaintenanceMessage(
-            typeof maintenance.message === "string"
-              ? maintenance.message
-              : "Kiosk is under maintenance",
-          );
-          return;
-        }
-
         if (restoredToken && !restoredOrder && orderCreationMayBeInProgress(pin)) {
           // The previous browser request may have reached Razorpay even if its response
           // was lost. Recover the reservation; never create a second order blindly.
@@ -381,6 +363,26 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
           if (!recovered) {
             throw new Error("Order creation is still being resolved. Do not create another order. Refresh this page to check the same order again.");
           }
+        }
+
+        // Recover unresolved orders even if maintenance is now active. Status access is
+        // read-only; it must remain available so a paid customer can see what happened.
+        const maintenanceResponse = await fetch(apiUrl("/api/maintenance"), {
+          cache: "no-store",
+        });
+        if (!maintenanceResponse.ok) {
+          throw new Error("Terminal 02 availability could not be confirmed. Do not pay again; check any existing order when service returns.");
+        }
+        const maintenance = await parseResponse(maintenanceResponse);
+        if (cancelled) return;
+
+        if (maintenance.enabled === true) {
+          setMaintenanceMessage(
+            typeof maintenance.message === "string"
+              ? maintenance.message
+              : "Kiosk is under maintenance",
+          );
+          return;
         }
 
         if (restoredToken) return;
