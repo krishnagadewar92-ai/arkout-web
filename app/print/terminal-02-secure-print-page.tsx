@@ -362,7 +362,7 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
               return;
             }
             if (
-              ["existing_order", "payment_review"].includes(String(recoveryData.status)) &&
+              ["existing_order", "payment_review", "processing"].includes(String(recoveryData.status)) &&
               typeof recoveryData.id === "string" &&
               typeof recoveryData.amount === "number" &&
               typeof recoveryData.currency === "string"
