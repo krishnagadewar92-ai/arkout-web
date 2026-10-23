@@ -7,6 +7,24 @@ import { AlertTriangle, ArrowLeft, CheckCircle2, FileText, LoaderCircle, LockKey
 const API_BASE = "https://api2.arkout.in";
 const STORAGE_PREFIX = "arkout-terminal-02-session:";
 
+// Share a single claim request if React remounts the page during development or navigation.
+const sessionClaimRequests = new Map<string, Promise<ApiPayload>>();
+
+async function claimSessionOnce(pin: string): Promise<ApiPayload> {
+  const existing = sessionClaimRequests.get(pin);
+  if (existing) return existing;
+  const request = fetch(apiUrl("/api/claim_session"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ session_id: pin }),
+  }).then(parseResponse).finally(() => {
+    // Keep successful tokens in sessionStorage; only the in-flight promise is deduplicated.
+    sessionClaimRequests.delete(pin);
+  });
+  sessionClaimRequests.set(pin, request);
+  return request;
+}
+
 type PrintConfig = {
   colorMode: "bw" | "color";
   sides: "single" | "double";
@@ -216,20 +234,16 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
 
         if (restoredToken) return;
 
-        const claimResponse = await fetch(apiUrl("/api/claim_session"), {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ session_id: pin }),
-        });
-        const claimData = await parseResponse(claimResponse);
-        if (!claimResponse.ok || typeof claimData.session_token !== "string") {
+        const claimData = await claimSessionOnce(pin);
+        if (typeof claimData.session_token !== "string") {
           throw new Error(messageFrom(claimData, "Could not reserve this kiosk session. Scan the current QR code again."));
         }
-        if (cancelled) return;
 
         const token = claimData.session_token;
-        setSessionToken(token);
+        // Persist before checking effect cancellation so a remounted page can restore the claim.
         saveSession(pin, token, null);
+        if (cancelled) return;
+        setSessionToken(token);
       } catch (error) {
         if (!cancelled) {
           setStartupError(
