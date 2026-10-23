@@ -22,7 +22,7 @@ export default function PrintRouterPage() {
   function continueWithPin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const pin = manualPin.trim();
-    if (!/^\\d{4}$/.test(pin) && !/^02\\d{4}$/.test(pin)) {
+    if (!/^\d{4}$/.test(pin) && !/^02\d{4}$/.test(pin)) {
       setPinError("Enter a 4-digit Terminal 01 PIN or scan the 6-digit Terminal 02 QR code.");
       return;
     }
@@ -38,8 +38,8 @@ export default function PrintRouterPage() {
     );
   }
 
-  if (/^\\d{4}$/.test(routePin)) return <Terminal01LegacyPrintPage />;
-  if (/^02\\d{4}$/.test(routePin)) return <Terminal02SecurePrintPage pin={routePin} />;
+  if (/^\d{4}$/.test(routePin)) return <Terminal01LegacyPrintPage />;
+  if (/^02\d{4}$/.test(routePin)) return <Terminal02SecurePrintPage pin={routePin} />;
 
   if (routePin) {
     return (
@@ -93,7 +93,7 @@ export default function PrintRouterPage() {
 
           <form onSubmit={continueWithPin} className="mt-8 space-y-4">
             <label className="block text-xs font-medium text-white/75" htmlFor="terminal-pin">Terminal PIN</label>
-            <input id="terminal-pin" inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={manualPin} onChange={e => { setManualPin(e.target.value.replace(/\\D/g, "").slice(0, 6)); setPinError(""); }} placeholder="Enter 4 or 6 digits" className="w-full rounded-2xl border border-white/15 bg-black/30 px-4 py-4 text-center font-mono text-2xl tracking-[.28em] text-white outline-none transition placeholder:text-sm placeholder:tracking-normal placeholder:text-white/25 focus:border-[#bdcbff]/70 focus:ring-4 focus:ring-[#bdcbff]/10" />
+            <input id="terminal-pin" inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={manualPin} onChange={e => { setManualPin(e.target.value.replace(/\D/g, "").slice(0, 6)); setPinError(""); }} placeholder="Enter 4 or 6 digits" className="w-full rounded-2xl border border-white/15 bg-black/30 px-4 py-4 text-center font-mono text-2xl tracking-[.28em] text-white outline-none transition placeholder:text-sm placeholder:tracking-normal placeholder:text-white/25 focus:border-[#bdcbff]/70 focus:ring-4 focus:ring-[#bdcbff]/10" />
             {pinError && <p role="alert" className="text-sm text-rose-300">{pinError}</p>}
             <button type="submit" className="group flex min-h-12 w-full items-center justify-center gap-3 rounded-full bg-[#f0f1f5] px-5 text-sm font-bold text-[#0b0c10] transition duration-300 hover:-translate-y-0.5 hover:bg-white">Continue to print <ArrowRight size={16} className="transition-transform group-hover:translate-x-1" /></button>
           </form>
