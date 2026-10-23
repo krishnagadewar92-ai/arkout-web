@@ -2,10 +2,12 @@
 
 import { ChangeEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { getTerminalApiBaseUrl } from "../../lib/api-config";
 import { AlertTriangle, ArrowLeft, CheckCircle2, FileText, LoaderCircle, LockKeyhole, Printer, ShieldCheck, UploadCloud } from "lucide-react";
 
-const API_BASE = "https://api2.arkout.in";
+const API_BASE = getTerminalApiBaseUrl("020000");
 const STORAGE_PREFIX = "arkout-terminal-02-session:";
+const PAYMENT_STARTED_SUFFIX = ":payment-may-have-started";
 
 // Share a single claim request if React remounts the page during development or navigation.
 const sessionClaimRequests = new Map<string, Promise<ApiPayload>>();
@@ -72,7 +74,49 @@ type WindowWithRazorpay = Window & {
 };
 
 function apiUrl(path: string) {
+  if (!API_BASE) {
+    throw new Error("Preview is isolated: no approved Terminal 02 staging API is configured.");
+  }
   return API_BASE + path;
+}
+
+function paymentMayHaveStarted(pin: string): boolean {
+  try {
+    // Fail safe if storage is inaccessible: do not release a potentially paid order.
+    return window.sessionStorage.getItem(STORAGE_PREFIX + pin + PAYMENT_STARTED_SUFFIX) !== null;
+  } catch {
+    return true;
+  }
+}
+
+/** Best-effort exit cleanup. The server remains the authority on payment and job state. */
+function sendExitCleanup(pin: string, storageKey: string) {
+  if (!API_BASE || !/^02\\d{4}$/.test(pin)) return;
+  try {
+    if (paymentMayHaveStarted(pin)) return;
+
+    const raw = window.sessionStorage.getItem(storageKey);
+    if (!raw) return;
+    const saved = JSON.parse(raw) as { sessionToken?: unknown; order?: unknown };
+    if (typeof saved.sessionToken !== "string" || !saved.sessionToken) return;
+
+    const orderId =
+      saved.order && typeof saved.order === "object" &&
+      typeof (saved.order as ActiveOrder).id === "string"
+        ? (saved.order as ActiveOrder).id
+        : "";
+
+    const path = orderId ? "/api/cancel-order" : "/api/abort";
+    const payload = JSON.stringify({
+      session_id: pin,
+      session_token: saved.sessionToken,
+      ...(orderId ? { order_id: orderId, razorpay_order_id: orderId } : {}),
+      reason: "customer_left_before_payment",
+    });
+    navigator.sendBeacon(API_BASE + path, new Blob([payload], { type: "application/json" }));
+  } catch {
+    // Network loss, blocked beacons, or storage failures fall back to server-side expiry.
+  }
 }
 
 function formatRupees(paise: number) {
@@ -167,6 +211,8 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
   const [isPreparingOrder, setIsPreparingOrder] = useState(false);
   const [isCheckingStatus, setIsCheckingStatus] = useState(false);
   const [isOpeningCheckout, setIsOpeningCheckout] = useState(false);
+  const [isCancellingOrder, setIsCancellingOrder] = useState(false);
+  const [canCancelOrder, setCanCancelOrder] = useState(false);
   const [message, setMessage] = useState("");
   const [messageKind, setMessageKind] = useState<"info" | "error" | "success">("info");
   const [submitted, setSubmitted] = useState(false);
@@ -218,7 +264,10 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
           setSessionToken(restoredToken);
           setActiveOrder(restoredOrder);
           if (restoredOrder) {
-            setMessage("An existing order was found. Check its status before attempting payment again.");
+            // A restored order is cancellable only if this browser has no marker that
+            // the payment window was ever opened. The server re-validates on cancel.
+            setCanCancelOrder(!paymentMayHaveStarted(pin));
+            setMessage("An existing order was found. Check its payment status before attempting payment again.");
             setCanOpenCheckout(false);
           }
         }
@@ -260,6 +309,21 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
     void initialiseSession();
     return () => {
       cancelled = true;
+    };
+  }, [pin, storageKey]);
+
+  useEffect(() => {
+    const handlePageHide = () => sendExitCleanup(pin, storageKey);
+    const handlePopState = () => {
+      // Browser Back is often an SPA navigation and does not fire pagehide.
+      const currentPin = new URLSearchParams(window.location.search).get("pin") || "";
+      if (currentPin !== pin) sendExitCleanup(pin, storageKey);
+    };
+    window.addEventListener("pagehide", handlePageHide);
+    window.addEventListener("popstate", handlePopState);
+    return () => {
+      window.removeEventListener("pagehide", handlePageHide);
+      window.removeEventListener("popstate", handlePopState);
     };
   }, [pin, storageKey]);
 
@@ -390,6 +454,7 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
             currency: data.currency,
           };
           saveOrder(existing);
+          setCanCancelOrder(!paymentMayHaveStarted(pin));
           setCanOpenCheckout(false);
           setCanResumeSameOrder(false);
         }
@@ -405,6 +470,7 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
 
       const order = { id: data.id, amount: data.amount, currency: data.currency };
       saveOrder(order);
+      setCanCancelOrder(true);
       setCanOpenCheckout(true);
       setCanResumeSameOrder(false);
       setMessage("Secure order ready. The amount below was calculated by the backend.");
@@ -515,6 +581,29 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
         );
         setMessageKind("error");
       });
+      // Mark the order at the backend before handing control to Razorpay/UPI.
+      // If this marker request fails, do not open payment and do not expose cancel
+      // as though the order were known unpaid.
+      const startedResponse = await fetch(apiUrl("/api/mark-payment-started"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          session_id: pin,
+          session_token: sessionToken,
+          order_id: activeOrder.id,
+        }),
+      });
+      const startedData = await parseResponse(startedResponse);
+      if (!startedResponse.ok || startedData.status !== "payment_started") {
+        throw new Error(messageFrom(startedData, "The server could not reserve this payment attempt. Payment was not opened."));
+      }
+      try {
+        window.sessionStorage.setItem(storageKey + PAYMENT_STARTED_SUFFIX, "1");
+      } catch {
+        // Server-side marker is authoritative; inability to persist locally must not
+        // cancel the order. Exit cleanup treats inaccessible storage as unsafe.
+      }
+      setCanCancelOrder(false);
       checkout.open();
     } catch (error) {
       setCanOpenCheckout(false);
@@ -556,7 +645,11 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
         setMessageKind("info");
       } else if (data.status === "awaiting_payment" && data.can_resume_same_order === true) {
         setCanResumeSameOrder(true);
-        setMessage("No captured or unresolved payment attempt was found. You may resume checkout for this same order.");
+        // Status reconciliation says the same order is safe to resume. A cancel request
+        // still goes to the backend, which must verify gateway state atomically.
+        try { window.sessionStorage.removeItem(storageKey + PAYMENT_STARTED_SUFFIX); } catch {}
+        setCanCancelOrder(true);
+        setMessage("No captured or unresolved payment attempt was found. You may resume this order or cancel it.");
         setMessageKind("success");
       } else {
         setMessage(
@@ -572,6 +665,78 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
       setMessageKind("error");
     } finally {
       setIsCheckingStatus(false);
+    }
+  }
+
+  async function cancelCurrentOrder() {
+    if (!activeOrder || !sessionToken || !canCancelOrder || isCancellingOrder) return;
+    setIsCancellingOrder(true);
+    setMessage("Checking with the server before cancelling. No print job will be submitted by this action.");
+    setMessageKind("info");
+    try {
+      const response = await fetch(apiUrl("/api/cancel-order"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          session_id: pin,
+          session_token: sessionToken,
+          order_id: activeOrder.id,
+          razorpay_order_id: activeOrder.id,
+        }),
+      });
+      const data = await parseResponse(response);
+      if (!response.ok || !["cancelled", "already_cancelled"].includes(String(data.status))) {
+        throw new Error(messageFrom(data, "The server could not safely cancel this order. Its status has been preserved; check payment status before retrying."));
+      }
+      try {
+        window.sessionStorage.removeItem(storageKey);
+        window.sessionStorage.removeItem(storageKey + PAYMENT_STARTED_SUFFIX);
+      } catch {}
+      setMessage("Order cancelled. No new print submission was requested.");
+      setMessageKind("success");
+      setActiveOrder(null);
+      setSessionToken("");
+      setCanCancelOrder(false);
+      setCanOpenCheckout(false);
+      setCanResumeSameOrder(false);
+      setUploadedDocuments([]);
+      setTotalPages(0);
+      setFiles([]);
+      // A cancelled PIN is no longer usable. Return to the router for a fresh PIN.
+      window.setTimeout(() => window.location.assign("/"), 700);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Cancellation could not be confirmed. Do not pay again; check order status.");
+      setMessageKind("error");
+    } finally {
+      setIsCancellingOrder(false);
+    }
+  }
+
+  async function cancelDraftSession() {
+    if (!sessionToken || activeOrder || isCancellingOrder) return;
+    setIsCancellingOrder(true);
+    setMessage("Releasing this unpaid session…");
+    setMessageKind("info");
+    try {
+      const response = await fetch(apiUrl("/api/abort"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ session_id: pin, session_token: sessionToken }),
+      });
+      const data = await parseResponse(response);
+      if (!response.ok || !["ok", "stale"].includes(String(data.status))) {
+        throw new Error(messageFrom(data, "The session could not be safely released. It will expire automatically if abandoned."));
+      }
+      try {
+        window.sessionStorage.removeItem(storageKey);
+        window.sessionStorage.removeItem(storageKey + PAYMENT_STARTED_SUFFIX);
+      } catch {}
+      window.location.assign("/");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not release this session.");
+      setMessageKind("error");
+    } finally {
+      setIsCancellingOrder(false);
     }
   }
 
@@ -736,6 +901,22 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
               <button type="button" onClick={checkPaymentStatus} disabled={isCheckingStatus} className="w-full rounded-xl border border-white/20 px-5 py-3 font-semibold hover:bg-white/10 disabled:opacity-50">
                 {isCheckingStatus ? "Checking payment status…" : "Check existing payment status"}
               </button>
+
+              {canCancelOrder && (
+                <button
+                  type="button"
+                  onClick={cancelCurrentOrder}
+                  disabled={isCancellingOrder || isOpeningCheckout || isCheckingStatus}
+                  className="w-full rounded-xl border border-rose-300/30 px-5 py-3 font-semibold text-rose-200 hover:bg-rose-400/10 disabled:opacity-50"
+                >
+                  {isCancellingOrder ? "Confirming cancellation…" : "Cancel order before payment"}
+                </button>
+              )}
+              {!canCancelOrder && (
+                <p className="text-xs leading-5 text-amber-200/80">
+                  Payment may have started. Check its status before attempting anything else; the order will not be cancelled automatically.
+                </p>
+              )}
             </div>
           )}
 
@@ -748,7 +929,17 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
           <div className="flex items-start gap-3 border-t border-white/10 pt-5 text-xs leading-5 text-slate-400"><ShieldCheck size={17} className="mt-0.5 shrink-0 text-indigo-300" aria-hidden="true" /> Payment verification and print submission are performed by the Terminal 02 backend. This page never calls the direct-print endpoint.</div>
         </section>
 
-        <Link href="/" className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-slate-400 hover:text-white"><ArrowLeft size={16} aria-hidden="true" /> Back to Arkout</Link>
+        {!activeOrder && (
+          <button
+            type="button"
+            onClick={cancelDraftSession}
+            disabled={!sessionToken || isCancellingOrder}
+            className="mt-6 inline-flex items-center gap-2 rounded-full border border-rose-300/20 px-4 py-2 text-xs font-semibold text-rose-200 hover:bg-rose-400/10 disabled:opacity-40"
+          >
+            {isCancellingOrder ? "Releasing session…" : "Cancel session and discard uploads"}
+          </button>
+        )}
+        <Link href="/" onClick={() => sendExitCleanup(pin, storageKey)} className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-slate-400 hover:text-white"><ArrowLeft size={16} aria-hidden="true" /> Back to Arkout</Link>
       </div>
     </main>
   );
