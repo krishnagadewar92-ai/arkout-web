@@ -439,7 +439,7 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
         name: "Arkout Print Hub",
         description: "Terminal 02 secure printing",
         order_id: activeOrder.id,
-        theme: { color: "#0891b2" },
+        theme: { color: "#a7baff" },
         handler: async (payment) => {
           if (!payment.razorpay_order_id || !payment.razorpay_payment_id || !payment.razorpay_signature) {
             setMessage("Payment response was incomplete. Do not pay again; check the order status.");
@@ -579,7 +579,7 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
           <div className="mb-7 flex h-14 w-14 items-center justify-center rounded-2xl border border-amber-300/20 bg-amber-300/10 text-amber-200">
             {maintenanceMessage ? <LockKeyhole size={28} aria-hidden="true" /> : <AlertTriangle size={28} aria-hidden="true" />}
           </div>
-          <p className="text-xs font-bold uppercase tracking-[0.22em] text-cyan-300">Arkout Terminal 02</p>
+          <p className="text-xs font-bold uppercase tracking-[0.22em] text-indigo-300">Arkout Terminal 02</p>
           <h1 className="mt-3 text-3xl font-bold tracking-tight">{maintenanceMessage ? "Kiosk is under maintenance" : "Terminal 02 is temporarily unavailable"}</h1>
           <p className="mt-4 leading-7 text-slate-300">{maintenanceMessage || startupError}</p>
           {activeOrder && sessionToken && (
@@ -591,7 +591,7 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
               {message && <p role="status" className="mt-3 text-sm leading-6 text-slate-300">{message}</p>}
             </div>
           )}
-          <div className="mt-6 flex items-start gap-3 text-sm leading-6 text-slate-400"><ShieldCheck size={19} className="mt-0.5 shrink-0 text-cyan-300" aria-hidden="true" /> No new checkout or print submission can be started while maintenance is enabled.</div>
+          <div className="mt-6 flex items-start gap-3 text-sm leading-6 text-slate-400"><ShieldCheck size={19} className="mt-0.5 shrink-0 text-indigo-300" aria-hidden="true" /> No new checkout or print submission can be started while maintenance is enabled.</div>
           <Link href="/" className="mt-8 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-white px-5 py-3 font-semibold text-slate-950 transition hover:bg-slate-200"><ArrowLeft size={17} aria-hidden="true" /> Back to Arkout</Link>
         </section>
       </main>
@@ -616,9 +616,9 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
     <main className="min-h-screen bg-slate-950 px-4 py-10 text-white sm:px-6">
       <div className="mx-auto w-full max-w-3xl">
         <header className="mb-8 flex items-center gap-4">
-          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-cyan-300/20 bg-cyan-300/10 text-cyan-200"><Printer size={28} aria-hidden="true" /></div>
+          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-indigo-300/20 bg-indigo-300/10 text-indigo-200"><Printer size={28} aria-hidden="true" /></div>
           <div>
-            <p className="text-xs font-bold uppercase tracking-[0.22em] text-cyan-300">Arkout PrintPod · Terminal 02</p>
+            <p className="text-xs font-bold uppercase tracking-[0.22em] text-indigo-300">Arkout PrintPod · Terminal 02</p>
             <h1 className="mt-1 text-3xl font-bold tracking-tight">Secure printing checkout</h1>
             <p className="mt-1 text-sm text-slate-400">PIN session: {pin}</p>
           </div>
@@ -632,8 +632,8 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
                   <h2 className="text-lg font-semibold">1. Upload documents</h2>
                   <p className="mt-1 text-sm leading-6 text-slate-400">PDFs and supported images only. Up to 10 files and 30 pages per print package.</p>
                 </div>
-                <label htmlFor="terminal-02-files" className="flex cursor-pointer flex-col items-center rounded-2xl border border-dashed border-white/20 bg-black/20 px-5 py-8 text-center hover:border-cyan-300/50">
-                  <UploadCloud size={30} className="text-cyan-300" aria-hidden="true" />
+                <label htmlFor="terminal-02-files" className="flex cursor-pointer flex-col items-center rounded-2xl border border-dashed border-white/20 bg-black/20 px-5 py-8 text-center hover:border-indigo-300/50">
+                  <UploadCloud size={30} className="text-indigo-300" aria-hidden="true" />
                   <span className="mt-3 font-semibold">{files.length ? files.length + " file(s) selected" : "Choose documents"}</span>
                   <span className="mt-1 text-sm text-slate-400">PDF, JPG, PNG, WebP or HEIC</span>
                   <input id="terminal-02-files" className="sr-only" type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.webp,.heic" onChange={(event) => setFiles(Array.from(event.target.files || []))} />
@@ -645,7 +645,7 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
 
               {uploadedDocuments.length > 0 && (
                 <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-                  <div className="flex items-center gap-2 font-semibold"><FileText size={18} className="text-cyan-300" /> Server-registered documents</div>
+                  <div className="flex items-center gap-2 font-semibold"><FileText size={18} className="text-indigo-300" /> Server-registered documents</div>
                   <ul className="mt-3 space-y-2 text-sm text-slate-300">
                     {uploadedDocuments.map((doc) => <li key={doc.filename} className="flex justify-between gap-4"><span className="break-all">{doc.filename}</span><span className="shrink-0">{doc.pages} page(s)</span></li>)}
                   </ul>
@@ -684,12 +684,12 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
                       </select>
                     </label>
                   </div>
-                  <div className="rounded-2xl border border-cyan-300/20 bg-cyan-300/[0.06] p-4">
+                  <div className="rounded-2xl border border-indigo-300/20 bg-indigo-300/[0.06] p-4">
                     <p className="text-sm text-slate-300">Estimated total</p>
                     <p className="mt-1 text-2xl font-bold">{formatRupees(Math.round(estimatedRupees * 100))}</p>
                     <p className="mt-1 text-xs leading-5 text-slate-400">Estimate only. The server's registered order amount is authoritative at checkout.</p>
                   </div>
-                  <button type="button" onClick={createSecureOrder} disabled={isPreparingOrder || !canUpload} className="w-full rounded-xl bg-cyan-300 px-5 py-3 font-bold text-slate-950 hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-50">
+                  <button type="button" onClick={createSecureOrder} disabled={isPreparingOrder || !canUpload} className="w-full rounded-xl bg-indigo-300 px-5 py-3 font-bold text-slate-950 hover:bg-indigo-200 disabled:cursor-not-allowed disabled:opacity-50">
                     {isPreparingOrder ? "Preparing secure order…" : "Create secure checkout"}
                   </button>
                 </div>
@@ -708,13 +708,13 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
               </div>
 
               {canOpenCheckout && (
-                <button type="button" onClick={openCheckout} disabled={isOpeningCheckout} className="w-full rounded-xl bg-cyan-300 px-5 py-3 font-bold text-slate-950 hover:bg-cyan-200 disabled:opacity-50">
+                <button type="button" onClick={openCheckout} disabled={isOpeningCheckout} className="w-full rounded-xl bg-indigo-300 px-5 py-3 font-bold text-slate-950 hover:bg-indigo-200 disabled:opacity-50">
                   {isOpeningCheckout ? "Checking availability…" : "Continue to secure payment"}
                 </button>
               )}
 
               {canResumeSameOrder && (
-                <button type="button" onClick={openCheckout} disabled={isOpeningCheckout} className="w-full rounded-xl bg-cyan-300 px-5 py-3 font-bold text-slate-950 hover:bg-cyan-200 disabled:opacity-50">
+                <button type="button" onClick={openCheckout} disabled={isOpeningCheckout} className="w-full rounded-xl bg-indigo-300 px-5 py-3 font-bold text-slate-950 hover:bg-indigo-200 disabled:opacity-50">
                   {isOpeningCheckout ? "Checking availability…" : "Resume this same order"}
                 </button>
               )}
@@ -731,7 +731,7 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
             </div>
           )}
 
-          <div className="flex items-start gap-3 border-t border-white/10 pt-5 text-xs leading-5 text-slate-400"><ShieldCheck size={17} className="mt-0.5 shrink-0 text-cyan-300" aria-hidden="true" /> Payment verification and print submission are performed by the Terminal 02 backend. This page never calls the direct-print endpoint.</div>
+          <div className="flex items-start gap-3 border-t border-white/10 pt-5 text-xs leading-5 text-slate-400"><ShieldCheck size={17} className="mt-0.5 shrink-0 text-indigo-300" aria-hidden="true" /> Payment verification and print submission are performed by the Terminal 02 backend. This page never calls the direct-print endpoint.</div>
         </section>
 
         <Link href="/" className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-slate-400 hover:text-white"><ArrowLeft size={16} aria-hidden="true" /> Back to Arkout</Link>
