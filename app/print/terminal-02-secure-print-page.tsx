@@ -863,6 +863,7 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
       try {
         window.sessionStorage.removeItem(storageKey);
         window.sessionStorage.removeItem(storageKey + PAYMENT_STARTED_SUFFIX);
+        window.sessionStorage.removeItem(storageKey + ORDER_CREATION_SUFFIX);
       } catch {}
       setMessage("Order cancelled. No new print submission was requested.");
       setMessageKind("success");
@@ -902,6 +903,7 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
       try {
         window.sessionStorage.removeItem(storageKey);
         window.sessionStorage.removeItem(storageKey + PAYMENT_STARTED_SUFFIX);
+        window.sessionStorage.removeItem(storageKey + ORDER_CREATION_SUFFIX);
       } catch {}
       window.location.assign("/");
     } catch (error) {
