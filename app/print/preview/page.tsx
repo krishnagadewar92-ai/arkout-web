@@ -32,7 +32,7 @@ export default function PrintFlowPreviewPage() {
   const maintenance = manualMaintenance || fault !== "healthy";
 
   function record(event: string) {
-    setEventLog((current) => [new Date().toLocaleTimeString(), event].map((value, index) => index === 0 ? value + " · " + event : value).slice(0, 5));
+    setEventLog((current) => [new Date().toLocaleTimeString() + " · " + event, ...current].slice(0, 5));
   }
 
   function simulateCustomerAction(next: CustomerStage, message: string) {
