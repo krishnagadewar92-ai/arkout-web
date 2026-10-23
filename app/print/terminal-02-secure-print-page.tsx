@@ -127,7 +127,16 @@ function sendExitCleanup(pin: string, storageKey: string) {
       ...(orderId ? { order_id: orderId, razorpay_order_id: orderId } : {}),
       reason: "customer_left_before_payment",
     });
-    navigator.sendBeacon(API_BASE + path, new Blob([payload], { type: "application/json" }));
+    // Use a keepalive fetch for JSON/CORS compatibility with the separate API origin.
+    // It remains best-effort; the server-side idle lease is still the fallback.
+    void fetch(API_BASE + path, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: payload,
+      keepalive: true,
+      mode: "cors",
+      credentials: "omit",
+    }).catch(() => undefined);
   } catch {
     // Network loss, blocked beacons, or storage failures fall back to server-side expiry.
   }
