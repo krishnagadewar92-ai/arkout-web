@@ -227,14 +227,8 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
       setSessionLoading(true);
       setStartupError("");
       try {
-        const maintenanceResponse = await fetch(apiUrl("/api/maintenance"), {
-          cache: "no-store",
-        });
-        if (!maintenanceResponse.ok) {
-          throw new Error("Terminal 02 availability could not be confirmed.");
-        }
-        const maintenance = await parseResponse(maintenanceResponse);
-
+        // Restore order recovery state before any network call. A backend outage must
+        // never erase the user's order reference or make a new payment look safe.
         let restoredToken = "";
         let restoredOrder: ActiveOrder | null = null;
         try {
@@ -256,7 +250,7 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
             }
           }
         } catch {
-          // Ignore unusable browser state and require a fresh server claim below.
+          // Ignore corrupt browser state, but never try to resume a malformed order.
         }
 
         if (cancelled) return;
@@ -264,13 +258,20 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
           setSessionToken(restoredToken);
           setActiveOrder(restoredOrder);
           if (restoredOrder) {
-            // A restored order is cancellable only if this browser has no marker that
-            // the payment window was ever opened. The server re-validates on cancel.
             setCanCancelOrder(!paymentMayHaveStarted(pin));
             setMessage("An existing order was found. Check its payment status before attempting payment again.");
             setCanOpenCheckout(false);
           }
         }
+
+        const maintenanceResponse = await fetch(apiUrl("/api/maintenance"), {
+          cache: "no-store",
+        });
+        if (!maintenanceResponse.ok) {
+          throw new Error("Terminal 02 availability could not be confirmed. Do not pay again; check any existing order when service returns.");
+        }
+        const maintenance = await parseResponse(maintenanceResponse);
+        if (cancelled) return;
 
         if (maintenance.enabled === true) {
           setMaintenanceMessage(
@@ -648,11 +649,10 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
         setMessageKind("info");
       } else if (data.status === "awaiting_payment" && data.can_resume_same_order === true) {
         setCanResumeSameOrder(true);
-        // Status reconciliation says the same order is safe to resume. A cancel request
-        // still goes to the backend, which must verify gateway state atomically.
-        try { window.sessionStorage.removeItem(storageKey + PAYMENT_STARTED_SUFFIX); } catch {}
-        setCanCancelOrder(true);
-        setMessage("No captured or unresolved payment attempt was found. You may resume this order or cancel it.");
+        // Do not erase the first-checkout marker. A reconciled order may be resumed,
+        // but cancellation remains locked if checkout was ever handed to the gateway.
+        setCanCancelOrder(!paymentMayHaveStarted(pin));
+        setMessage("The server found no captured or unresolved payment attempt. You may resume this same order; cancellation is offered only when checkout was never started.");
         setMessageKind("success");
       } else {
         setMessage(
@@ -774,7 +774,7 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
             </div>
           )}
           <div className="mt-6 flex items-start gap-3 text-sm leading-6 text-slate-400"><ShieldCheck size={19} className="mt-0.5 shrink-0 text-indigo-300" aria-hidden="true" /> No new checkout or print submission can be started while maintenance is enabled.</div>
-          <Link href="/" className="mt-8 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-white px-5 py-3 font-semibold text-slate-950 transition hover:bg-slate-200"><ArrowLeft size={17} aria-hidden="true" /> Back to Arkout</Link>
+          <Link href="/" onClick={() => sendExitCleanup(pin, storageKey)} className="mt-8 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-white px-5 py-3 font-semibold text-slate-950 transition hover:bg-slate-200"><ArrowLeft size={17} aria-hidden="true" /> Back to Arkout</Link>
         </section>
       </main>
     );
@@ -788,7 +788,7 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
           <h1 className="mt-5 text-3xl font-bold">Print submission confirmed</h1>
           <p className="mt-4 leading-7 text-slate-300">{message || "The server confirmed the verified payment and accepted the print submission."}</p>
           <p className="mt-3 text-sm text-slate-400">Do not submit or pay for this order again.</p>
-          <Link href="/" className="mt-8 inline-flex items-center justify-center gap-2 rounded-xl bg-white px-5 py-3 font-semibold text-slate-950"><ArrowLeft size={17} aria-hidden="true" /> Back to Arkout</Link>
+          <Link href="/" onClick={() => sendExitCleanup(pin, storageKey)} className="mt-8 inline-flex items-center justify-center gap-2 rounded-xl bg-white px-5 py-3 font-semibold text-slate-950"><ArrowLeft size={17} aria-hidden="true" /> Back to Arkout</Link>
         </section>
       </main>
     );
