@@ -343,6 +343,24 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
               setStartupError("This order is already cancelled. Scan the current PIN on the kiosk to start a new session.");
               return;
             }
+            if (recoveryData.status === "submitted") {
+              // The server has a terminal accepted-submission record. Restore the receipt state,
+              // but never create or submit another job from recovery.
+              setSubmitted(true);
+              setActiveOrder(
+                typeof recoveryData.id === "string" &&
+                typeof recoveryData.amount === "number" &&
+                typeof recoveryData.currency === "string"
+                  ? { id: recoveryData.id, amount: recoveryData.amount, currency: recoveryData.currency }
+                  : null,
+              );
+              setCanCancelOrder(false);
+              setCanOpenCheckout(false);
+              setCanResumeSameOrder(false);
+              setMessage("The server confirms this order was already submitted. It will not be printed again.");
+              setMessageKind("success");
+              return;
+            }
             if (
               ["existing_order", "payment_review"].includes(String(recoveryData.status)) &&
               typeof recoveryData.id === "string" &&
@@ -362,11 +380,17 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
               setCanCancelOrder(recoveryData.status === "existing_order" &&
                 recoveryData.order_status === "created" &&
                 recoveryData.payment_started !== true);
-              if (recoveryData.payment_started === true || recoveryData.status === "payment_review") {
+              if (recoveryData.payment_started === true || recoveryData.status === "payment_review" || recoveryData.status === "processing") {
                 try { window.sessionStorage.setItem(storageKey + PAYMENT_STARTED_SUFFIX, "1"); } catch {}
               }
               clearStorageFlag(storageKey + ORDER_CREATION_SUFFIX);
-              setMessage("Your previous order was recovered. Check its payment status before continuing.");
+              if (recoveryData.status === "processing") {
+                setCanCancelOrder(false);
+                setMessage("Your existing print submission is still being processed. Do not pay again or start another print.");
+                setMessageKind("info");
+              } else {
+                setMessage("Your previous order was recovered. Check its payment status before continuing.");
+              }
               setCanOpenCheckout(false);
               setCanResumeSameOrder(false);
               recovered = true;
