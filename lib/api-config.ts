@@ -11,7 +11,12 @@ function normalizeBaseUrl(value: string | undefined): string {
  * only a separately provisioned preview/staging backend.
  */
 export function isPreviewDeployment(): boolean {
-  return process.env.NEXT_PUBLIC_DEPLOYMENT_STAGE !== "production";
+  // Both flags must agree before a build may use live APIs. Vercel's system environment
+  // protects Preview builds even if a project-level custom variable is misconfigured.
+  return !(
+    process.env.NEXT_PUBLIC_DEPLOYMENT_STAGE === "production" &&
+    process.env.VERCEL_ENV === "production"
+  );
 }
 
 export function getTerminalApiBaseUrl(sessionId: string): string {
