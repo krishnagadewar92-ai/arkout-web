@@ -311,13 +311,27 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
             if (recoveryData.status === "no_order") {
               clearStorageFlag(storageKey + ORDER_CREATION_SUFFIX);
               // No reservation was found. End this session cleanly and require a fresh PIN.
-              await fetch(apiUrl("/api/abort"), {
+              const abortResponse = await fetch(apiUrl("/api/abort"), {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ session_id: pin, session_token: restoredToken }),
-              }).catch(() => undefined);
-              try { window.sessionStorage.removeItem(storageKey); } catch {}
-              setStartupError("The server found no registered order and reset this session. Scan the new PIN on the kiosk before starting again.");
+              }).catch(() => null);
+              if (abortResponse && abortResponse.ok) {
+                const abortData = await parseResponse(abortResponse);
+                if (["aborted", "stale"].includes(String(abortData.status))) {
+                  try {
+                    window.sessionStorage.removeItem(storageKey);
+                    window.sessionStorage.removeItem(storageKey + PAYMENT_STARTED_SUFFIX);
+                    window.sessionStorage.removeItem(storageKey + ORDER_CREATION_SUFFIX);
+                  } catch {}
+                  setStartupError("The server found no registered order and released this session. Scan the new PIN on the kiosk before starting again.");
+                } else {
+                  setStartupError("No registered order was found, but session release was not confirmed. Refresh this page to retry cleanup; do not create another order.");
+                }
+              } else {
+                // Keep credentials if release could not be confirmed; do not strand a claimed PIN.
+                setStartupError("No registered order was found, but session release could not be confirmed. Refresh this page to retry cleanup; do not create another order.");
+              }
               return;
             }
             if (recoveryData.status === "cancelled") {
