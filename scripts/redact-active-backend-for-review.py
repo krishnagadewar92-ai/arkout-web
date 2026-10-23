@@ -50,13 +50,16 @@ def main():
         env_value=False
         if isinstance(value, ast.Call):
             fn=value.func
-            env_value=(
-                isinstance(fn, ast.Name) and fn.id == "getenv"
+            env_accessor=(
+                isinstance(fn, ast.Attribute) and fn.attr == "getenv" and
+                isinstance(fn.value, ast.Name) and fn.value.id == "os"
             ) or (
                 isinstance(fn, ast.Attribute) and fn.attr == "get" and
                 isinstance(fn.value, ast.Attribute) and fn.value.attr == "environ" and
                 isinstance(fn.value.value, ast.Name) and fn.value.value.id == "os"
             )
+            # Only remove an environment lookup when a hard-coded default exists.
+            env_value=env_accessor and len(value.args) >= 2 and isinstance(value.args[1], ast.Constant) and isinstance(value.args[1].value, str)
         start=getattr(node,"lineno",None); end=getattr(node,"end_lineno",None)
         if not sensitive or not (literal_value or env_value) or not start or not end: continue
         indent=re.match(r"\s*",lines[start-1]).group(0)
