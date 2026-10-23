@@ -289,6 +289,8 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
         }
 
         const token = claimData.session_token;
+        // A newly issued token represents a fresh session; clear any stale local payment marker.
+        try { window.sessionStorage.removeItem(storageKey + PAYMENT_STARTED_SUFFIX); } catch {}
         // Persist before checking effect cancellation so a remounted page can restore the claim.
         saveSession(pin, token, null);
         if (cancelled) return;
@@ -454,7 +456,7 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
             currency: data.currency,
           };
           saveOrder(existing);
-          setCanCancelOrder(!paymentMayHaveStarted(pin));
+          setCanCancelOrder(false);
           setCanOpenCheckout(false);
           setCanResumeSameOrder(false);
         }
@@ -619,6 +621,7 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
     setIsCheckingStatus(true);
     setCanOpenCheckout(false);
     setCanResumeSameOrder(false);
+    setCanCancelOrder(false);
     setMessage("Checking order and payment status. This will not submit a print job.");
     setMessageKind("info");
 
@@ -724,7 +727,7 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
         body: JSON.stringify({ session_id: pin, session_token: sessionToken }),
       });
       const data = await parseResponse(response);
-      if (!response.ok || !["ok", "stale"].includes(String(data.status))) {
+      if (!response.ok || !["aborted", "stale"].includes(String(data.status))) {
         throw new Error(messageFrom(data, "The session could not be safely released. It will expire automatically if abandoned."));
       }
       try {
