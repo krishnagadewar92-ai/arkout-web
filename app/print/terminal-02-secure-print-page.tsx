@@ -8,6 +8,7 @@ import { AlertTriangle, ArrowLeft, CheckCircle2, FileText, LoaderCircle, LockKey
 const API_BASE = getTerminalApiBaseUrl("020000");
 const STORAGE_PREFIX = "arkout-terminal-02-session:";
 const PAYMENT_STARTED_SUFFIX = ":payment-may-have-started";
+const ORDER_CREATION_SUFFIX = ":order-creation-may-be-in-progress";
 
 // Share a single claim request if React remounts the page during development or navigation.
 const sessionClaimRequests = new Map<string, Promise<ApiPayload>>();
@@ -89,11 +90,24 @@ function paymentMayHaveStarted(pin: string): boolean {
   }
 }
 
+function orderCreationMayBeInProgress(pin: string): boolean {
+  try {
+    return window.sessionStorage.getItem(STORAGE_PREFIX + pin + ORDER_CREATION_SUFFIX) === "1";
+  } catch {
+    // If browser storage is unreliable, do not assume that order creation is absent.
+    return true;
+  }
+}
+
+function clearStorageFlag(key: string) {
+  try { window.sessionStorage.removeItem(key); } catch {}
+}
+
 /** Best-effort exit cleanup. The server remains the authority on payment and job state. */
 function sendExitCleanup(pin: string, storageKey: string) {
   if (!API_BASE || !/^02\\d{4}$/.test(pin)) return;
   try {
-    if (paymentMayHaveStarted(pin)) return;
+    if (paymentMayHaveStarted(pin) || orderCreationMayBeInProgress(pin)) return;
 
     const raw = window.sessionStorage.getItem(storageKey);
     if (!raw) return;
@@ -141,14 +155,16 @@ async function parseResponse(response: Response): Promise<ApiPayload> {
   }
 }
 
-function saveSession(pin: string, token: string, order: ActiveOrder | null) {
+function saveSession(pin: string, token: string, order: ActiveOrder | null): boolean {
   try {
     window.sessionStorage.setItem(
       STORAGE_PREFIX + pin,
       JSON.stringify({ sessionToken: token, order }),
     );
+    return true;
   } catch {
-    // In-memory state remains usable if browser storage is unavailable.
+    // Recovery persistence is a payment safety requirement, not an optional cache.
+    return false;
   }
 }
 
@@ -282,6 +298,81 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
           return;
         }
 
+        if (restoredToken && !restoredOrder && orderCreationMayBeInProgress(pin)) {
+          // The previous browser request may have reached Razorpay even if its response
+          // was lost. Recover the reservation; never create a second order blindly.
+          let recovered = false;
+          for (let attempt = 0; attempt < 4 && !recovered; attempt += 1) {
+            const recoveryResponse = await fetch(apiUrl("/api/recover-order"), {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ session_id: pin, session_token: restoredToken }),
+            });
+            const recoveryData = await parseResponse(recoveryResponse);
+            if (recoveryResponse.status === 202 || recoveryData.status === "order_creation_pending") {
+              if (attempt < 3) await new Promise((resolve) => window.setTimeout(resolve, 3000));
+              continue;
+            }
+            if (!recoveryResponse.ok) {
+              throw new Error(messageFrom(recoveryData, "Order recovery is unavailable. Do not create another order or pay again."));
+            }
+            if (recoveryData.status === "no_order") {
+              clearStorageFlag(storageKey + ORDER_CREATION_SUFFIX);
+              // No reservation was found. End this session cleanly and require a fresh PIN.
+              await fetch(apiUrl("/api/abort"), {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ session_id: pin, session_token: restoredToken }),
+              }).catch(() => undefined);
+              try { window.sessionStorage.removeItem(storageKey); } catch {}
+              setStartupError("The server found no registered order and reset this session. Scan the new PIN on the kiosk before starting again.");
+              return;
+            }
+            if (recoveryData.status === "cancelled") {
+              try {
+                window.sessionStorage.removeItem(storageKey);
+                window.sessionStorage.removeItem(storageKey + PAYMENT_STARTED_SUFFIX);
+                window.sessionStorage.removeItem(storageKey + ORDER_CREATION_SUFFIX);
+              } catch {}
+              setStartupError("This order is already cancelled. Scan the current PIN on the kiosk to start a new session.");
+              return;
+            }
+            if (
+              ["existing_order", "payment_review"].includes(String(recoveryData.status)) &&
+              typeof recoveryData.id === "string" &&
+              typeof recoveryData.amount === "number" &&
+              typeof recoveryData.currency === "string"
+            ) {
+              const recoveredOrder = {
+                id: recoveryData.id,
+                amount: recoveryData.amount,
+                currency: recoveryData.currency,
+              };
+              if (!saveSession(pin, restoredToken, recoveredOrder)) {
+                throw new Error("The order was recovered, but this browser cannot securely save its recovery details. Do not pay; retry with browser storage enabled.");
+              }
+              setActiveOrder(recoveredOrder);
+              setSessionToken(restoredToken);
+              setCanCancelOrder(recoveryData.status === "existing_order" &&
+                recoveryData.order_status === "created" &&
+                recoveryData.payment_started !== true);
+              if (recoveryData.payment_started === true || recoveryData.status === "payment_review") {
+                try { window.sessionStorage.setItem(storageKey + PAYMENT_STARTED_SUFFIX, "1"); } catch {}
+              }
+              clearStorageFlag(storageKey + ORDER_CREATION_SUFFIX);
+              setMessage("Your previous order was recovered. Check its payment status before continuing.");
+              setCanOpenCheckout(false);
+              setCanResumeSameOrder(false);
+              recovered = true;
+              break;
+            }
+            throw new Error(messageFrom(recoveryData, "The order requires support review. Do not pay again."));
+          }
+          if (!recovered) {
+            throw new Error("Order creation is still being resolved. Do not create another order. Refresh this page to check the same order again.");
+          }
+        }
+
         if (restoredToken) return;
 
         const claimData = await claimSessionOnce(pin);
@@ -340,9 +431,10 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
     return totalPages * config.copies * rate;
   }, [config, totalPages]);
 
-  function saveOrder(next: ActiveOrder | null, token = sessionToken) {
+  function saveOrder(next: ActiveOrder | null, token = sessionToken): boolean {
     setActiveOrder(next);
-    if (token) saveSession(pin, token, next);
+    if (!token) return false;
+    return saveSession(pin, token, next);
   }
 
   async function uploadDocuments(event: ChangeEvent<HTMLFormElement>) {
@@ -426,12 +518,26 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
       return;
     }
 
+    if (orderCreationMayBeInProgress(pin)) {
+      setMessage("An order request may already be in progress or its response was lost. Refresh this page to recover that same order; do not create or pay for a second order.");
+      setMessageKind("error");
+      return;
+    }
+
     setIsPreparingOrder(true);
     setMessage("");
+    let orderRequestSent = false;
     try {
+      // Reserve the browser-side recovery guard before any asynchronous step.
+      try {
+        window.sessionStorage.setItem(storageKey + ORDER_CREATION_SUFFIX, "1");
+      } catch {
+        throw new Error("Browser recovery storage is unavailable. No payment order was requested.");
+      }
       const scriptLoaded = await loadRazorpayScript();
       if (!scriptLoaded) throw new Error("The payment gateway could not be loaded. No order was created.");
 
+      orderRequestSent = true;
       const response = await fetch(apiUrl("/api/create-order"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -456,7 +562,8 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
             amount: data.amount,
             currency: data.currency,
           };
-          saveOrder(existing);
+          const persisted = saveOrder(existing);
+          if (persisted) clearStorageFlag(storageKey + ORDER_CREATION_SUFFIX);
           setCanCancelOrder(false);
           setCanOpenCheckout(false);
           setCanResumeSameOrder(false);
@@ -472,14 +579,24 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
       }
 
       const order = { id: data.id, amount: data.amount, currency: data.currency };
-      saveOrder(order);
+      const persisted = saveOrder(order);
+      if (!persisted) {
+        setCanCancelOrder(false);
+        setCanOpenCheckout(false);
+        throw new Error("An order was created but browser recovery details could not be saved. Do not pay; enable browser storage and refresh to recover this same order.");
+      }
+      clearStorageFlag(storageKey + ORDER_CREATION_SUFFIX);
       setCanCancelOrder(true);
       setCanOpenCheckout(true);
       setCanResumeSameOrder(false);
       setMessage("Secure order ready. The amount below was calculated by the backend.");
       setMessageKind("success");
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Could not prepare the secure order.");
+      if (!orderRequestSent) clearStorageFlag(storageKey + ORDER_CREATION_SUFFIX);
+      const baseMessage = error instanceof Error ? error.message : "Could not prepare the secure order.";
+      setMessage(orderRequestSent && orderCreationMayBeInProgress(pin)
+        ? baseMessage + " The outcome may be unknown. Refresh this page to recover the same order; do not retry order creation or payment."
+        : baseMessage);
       setMessageKind("error");
     } finally {
       setIsPreparingOrder(false);
@@ -871,7 +988,7 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
                     <p className="mt-1 text-2xl font-bold">{formatRupees(Math.round(estimatedRupees * 100))}</p>
                     <p className="mt-1 text-xs leading-5 text-slate-400">Estimate only. The server's registered order amount is authoritative at checkout.</p>
                   </div>
-                  <button type="button" onClick={createSecureOrder} disabled={isPreparingOrder || !canUpload} className="w-full rounded-xl bg-indigo-300 px-5 py-3 font-bold text-slate-950 hover:bg-indigo-200 disabled:cursor-not-allowed disabled:opacity-50">
+                  <button type="button" onClick={createSecureOrder} disabled={isPreparingOrder || !canUpload || orderCreationMayBeInProgress(pin)} className="w-full rounded-xl bg-indigo-300 px-5 py-3 font-bold text-slate-950 hover:bg-indigo-200 disabled:cursor-not-allowed disabled:opacity-50">
                     {isPreparingOrder ? "Preparing secure order…" : "Create secure checkout"}
                   </button>
                 </div>
@@ -936,7 +1053,7 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
           <button
             type="button"
             onClick={cancelDraftSession}
-            disabled={!sessionToken || isCancellingOrder}
+            disabled={!sessionToken || isCancellingOrder || isUploading || isPreparingOrder || orderCreationMayBeInProgress(pin)}
             className="mt-6 inline-flex items-center gap-2 rounded-full border border-rose-300/20 px-4 py-2 text-xs font-semibold text-rose-200 hover:bg-rose-400/10 disabled:opacity-40"
           >
             {isCancellingOrder ? "Releasing session…" : "Cancel session and discard uploads"}
