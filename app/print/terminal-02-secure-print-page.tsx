@@ -105,7 +105,7 @@ function clearStorageFlag(key: string) {
 
 /** Best-effort exit cleanup. The server remains the authority on payment and job state. */
 function sendExitCleanup(pin: string, storageKey: string) {
-  if (!API_BASE || !/^02\\d{4}$/.test(pin)) return;
+  if (!API_BASE || !/^02\d{4}$/.test(pin)) return;
   try {
     if (paymentMayHaveStarted(pin) || orderCreationMayBeInProgress(pin)) return;
 
