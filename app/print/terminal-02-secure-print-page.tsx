@@ -471,6 +471,47 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
     };
   }, [pin, storageKey]);
 
+  // Keep an open, visible customer session alive. If the browser disappears and cleanup
+  // cannot reach the Pi, the server-side 15-minute idle lease releases the claim instead.
+  useEffect(() => {
+    if (!sessionToken || !API_BASE) return;
+    let stopped = false;
+
+    const heartbeat = async () => {
+      if (stopped || document.visibilityState !== "visible") return;
+      try {
+        const response = await fetch(apiUrl("/api/session-heartbeat"), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ session_id: pin, session_token: sessionToken }),
+          cache: "no-store",
+        });
+        if (response.status === 403) {
+          setCanOpenCheckout(false);
+          setCanResumeSameOrder(false);
+          setCanCancelOrder(false);
+          setMessage("This kiosk session has expired. Check the existing order status before doing anything else; do not pay again.");
+          setMessageKind("error");
+          if (!activeOrder) {
+            setStartupError("Your kiosk session expired. Return to the kiosk and scan its current PIN to start again.");
+          }
+        }
+      } catch {
+        // A missed heartbeat does not erase local recovery data; the server lease remains authoritative.
+      }
+    };
+
+    void heartbeat();
+    const interval = window.setInterval(() => { void heartbeat(); }, 60_000);
+    const onFocus = () => { void heartbeat(); };
+    window.addEventListener("focus", onFocus);
+    return () => {
+      stopped = true;
+      window.clearInterval(interval);
+      window.removeEventListener("focus", onFocus);
+    };
+  }, [pin, sessionToken, activeOrder]);
+
   const estimatedRupees = useMemo(() => {
     const rate =
       config.colorMode === "color"
