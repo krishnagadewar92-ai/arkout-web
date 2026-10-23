@@ -11,7 +11,7 @@ from pathlib import Path
 SENSITIVE = re.compile(
     r"(?i)(token|secret|password|passwd|api.?key|credential|auth|bot.?token|"
     r"client.?secret|private.?key|access.?key|signature|razorpay.*key|twilio.*auth|"
-    r"webhook|dsn|connection.?string|smtp.?pass|sid)$"
+    r"webhook|dsn|connection.?string|smtp.?pass|sid|.*key.*)$"
 )
 PATTERNS = [
     re.compile(r"(?i)\bBearer\s+[A-Za-z0-9._~+/=-]{12,}"),
@@ -43,8 +43,22 @@ def main():
         elif isinstance(node, ast.NamedExpr): targets=[node.target]
         else: continue
         sensitive=sorted({n for t in targets for n in names(t) if SENSITIVE.search(n)})
+        value=getattr(node,"value",None)
+        # Do not redact runtime customer/session variables just because their names contain
+        # "token". Redact only literal assignments or environment-backed config defaults.
+        literal_value=isinstance(value, ast.Constant) and isinstance(value.value, (str, bytes))
+        env_value=False
+        if isinstance(value, ast.Call):
+            fn=value.func
+            env_value=(
+                isinstance(fn, ast.Name) and fn.id == "getenv"
+            ) or (
+                isinstance(fn, ast.Attribute) and fn.attr == "get" and
+                isinstance(fn.value, ast.Attribute) and fn.value.attr == "environ" and
+                isinstance(fn.value.value, ast.Name) and fn.value.value.id == "os"
+            )
         start=getattr(node,"lineno",None); end=getattr(node,"end_lineno",None)
-        if not sensitive or not start or not end: continue
+        if not sensitive or not (literal_value or env_value) or not start or not end: continue
         indent=re.match(r"\s*",lines[start-1]).group(0)
         replacement[start]=indent+"# [REDACTED sensitive assignment: "+", ".join(sensitive)+"]\n"
         blank.update(range(start+1,end+1))
