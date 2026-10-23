@@ -8,7 +8,8 @@ import {
   Palette, Layers, Maximize, Lock, XCircle, Copy, Plus, Minus, Sparkles, Star
 } from "lucide-react";
 import Image from "next/image";
-import { useTerminalSession } from "../../hooks/useTerminalSession"; 
+import { useTerminalSession } from "../../hooks/useTerminalSession";
+import { getTerminalApiBaseUrl, isPreviewDeployment } from "../../lib/api-config";
 
 type AppStep = 'verify' | 'upload' | 'processing' | 'checkout' | 'success';
 
@@ -28,7 +29,7 @@ export default function Terminal01LegacyPrintPage() {
   const [pinError, setPinError] = useState("");
   const [isVerifying, setIsVerifying] = useState(false);
   
-  const [apiBaseUrl, setApiBaseUrl] = useState("https://api.arkout.in");
+  const [apiBaseUrl, setApiBaseUrl] = useState("");
 
   const [files, setFiles] = useState<File[]>([]);
   const [uploadedFilenames, setUploadedFilenames] = useState<string[]>([]); 
@@ -90,7 +91,21 @@ export default function Terminal01LegacyPrintPage() {
       return;
     }
 
-    const targetUrl = "https://api.arkout.in";
+    // Terminal 01 still contains a legacy client-side print trigger, so do not
+    // enable its real workflow in Preview. It must be migrated to server-verified
+    // payment confirmation before being tested against any backend.
+    if (isPreviewDeployment()) {
+      setPinError("Terminal 01 checkout is disabled in Preview until its payment flow is migrated to server-verified printing.");
+      setIsVerifying(false);
+      return;
+    }
+
+    const targetUrl = getTerminalApiBaseUrl(pinToVerify);
+    if (!targetUrl) {
+      setPinError("No approved Terminal 01 API endpoint is configured for this deployment.");
+      setIsVerifying(false);
+      return;
+    }
     setApiBaseUrl(targetUrl);
 
     try {
@@ -236,16 +251,27 @@ export default function Terminal01LegacyPrintPage() {
   };
 
   const resetApp = async () => {
+    // Release only when a real token is available; the backend rejects tokenless cleanup.
     try {
-      await fetch(`${apiBaseUrl}/api/abort`, { method: "POST", body: JSON.stringify({ session_id: pin }) });
-    } catch (e) { console.error("Abort failed"); }
+      const token = sessionStorage.getItem("arkout_session_token") || "";
+      if (apiBaseUrl && token && /^\\d{4}$/.test(pin)) {
+        await fetch(`${apiBaseUrl}/api/abort`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ session_id: pin, session_token: token }),
+          keepalive: true,
+        });
+      }
+    } catch {
+      // Idle lease expiry is the fallback if cleanup cannot reach the server.
+    }
 
     setFiles([]); setUploadedFilenames([]);
     setStep('verify'); setProgress(0); setPin("");
     setColorMode('bw'); setSides('single'); setMargin('standard'); 
     setBasePages(1); setCopies(1);
     setRating(0); setReviewText(""); setIsReviewSubmitted(false);
-    setApiBaseUrl("https://api.arkout.in");
+    setApiBaseUrl("");
   };
 
   if (!isSessionValid) {
