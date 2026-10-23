@@ -15,7 +15,7 @@ export function isPreviewDeployment(): boolean {
   // protects Preview builds even if a project-level custom variable is misconfigured.
   return !(
     process.env.NEXT_PUBLIC_DEPLOYMENT_STAGE === "production" &&
-    process.env.VERCEL_ENV === "production"
+    process.env.NEXT_PUBLIC_VERCEL_ENV === "production"
   );
 }
 
