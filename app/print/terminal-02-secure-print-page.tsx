@@ -9,22 +9,44 @@ const API_BASE = getTerminalApiBaseUrl("020000");
 const STORAGE_PREFIX = "arkout-terminal-02-session:";
 const PAYMENT_STARTED_SUFFIX = ":payment-may-have-started";
 const ORDER_CREATION_SUFFIX = ":order-creation-may-be-in-progress";
+const CLAIM_REQUEST_SUFFIX = ":claim-request-id";
+
+// Keep an idempotency secret before the first claim request. The backend stores only
+// its hash and replays the same token if the response is lost during navigation/reload.
+function getOrCreateClaimRequestId(pin: string): string {
+  const key = STORAGE_PREFIX + pin + CLAIM_REQUEST_SUFFIX;
+  try {
+    const stored = window.sessionStorage.getItem(key);
+    if (stored && /^[0-9a-f]{64}$/.test(stored)) return stored;
+    const bytes = new Uint8Array(32);
+    window.crypto.getRandomValues(bytes);
+    const claimRequestId = Array.from(bytes, byte => byte.toString(16).padStart(2, "0")).join("");
+    window.sessionStorage.setItem(key, claimRequestId);
+    if (window.sessionStorage.getItem(key) !== claimRequestId) {
+      throw new Error("Could not persist claim recovery ID");
+    }
+    return claimRequestId;
+  } catch {
+    throw new Error("Secure browser storage is unavailable. Enable session storage and scan the kiosk PIN again.");
+  }
+}
 
 // Share a single claim request if React remounts the page during development or navigation.
 const sessionClaimRequests = new Map<string, Promise<ApiPayload>>();
 
-async function claimSessionOnce(pin: string): Promise<ApiPayload> {
-  const existing = sessionClaimRequests.get(pin);
+async function claimSessionOnce(pin: string, claimRequestId: string): Promise<ApiPayload> {
+  const requestKey = pin + ":" + claimRequestId;
+  const existing = sessionClaimRequests.get(requestKey);
   if (existing) return existing;
   const request = fetch(apiUrl("/api/claim_session"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ session_id: pin }),
+    body: JSON.stringify({ session_id: pin, claim_request_id: claimRequestId }),
   }).then(parseResponse).finally(() => {
-    // Keep successful tokens in sessionStorage; only the in-flight promise is deduplicated.
-    sessionClaimRequests.delete(pin);
+    // Keep the stable recovery ID in sessionStorage; only the in-flight promise is cleared.
+    sessionClaimRequests.delete(requestKey);
   });
-  sessionClaimRequests.set(pin, request);
+  sessionClaimRequests.set(requestKey, request);
   return request;
 }
 
@@ -425,7 +447,8 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
 
         if (restoredToken) return;
 
-        const claimData = await claimSessionOnce(pin);
+        const claimRequestId = getOrCreateClaimRequestId(pin);
+        const claimData = await claimSessionOnce(pin, claimRequestId);
         if (typeof claimData.session_token !== "string") {
           throw new Error(messageFrom(claimData, "Could not reserve this kiosk session. Scan the current QR code again."));
         }
