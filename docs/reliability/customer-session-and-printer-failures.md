@@ -72,13 +72,23 @@ Request: `{session_id, session_token, order_id, razorpay_order_id}`
 
 Initial rollout should fail safe at kiosk level until per-printer routing is enforced by the print-order backend:
 
-- Poll CUPS queue state and IPP `printer-state`, `printer-state-reasons`, and reachability with bounded timeouts.
-- Treat explicit jam/media-jam, media-empty, door-open, stopped/disabled, offline, or repeated unreachable responses as unhealthy. A single telemetry timeout is `unknown`, not proof that a printer is healthy.
+- Poll configured CUPS queues via pycups where available, falling back to bounded `lpstat` probes if pycups is missing or fails. Check queue state, state reasons, accepting-jobs flag, and reachability with bounded timeouts.
+- Treat explicit jam/media-jam, media-empty, door-open, stopped/disabled, offline, `connecting-to-device`, USB-device-missing, CUPS backend/filter errors, or repeated unreachable/unknown responses as unhealthy. A single telemetry timeout is `unknown`, not proof that a printer is healthy.
 - Require two consecutive fault observations to avoid transient false alarms; immediately block new order creation if a hard fault is reported. Keep any already-paid/in-flight job record intact.
 - On a confirmed fault, persist a reason and timestamp, enable maintenance, and notify the admin. Deduplicate alerts until the fault changes or recovers.
 - On recovery, require three consecutive healthy observations and a recovery notification. Clear maintenance automatically only if the maintenance state was created by the automatic printer-health worker; never clear a manual admin maintenance decision.
 - Because the existing customer API has a kiosk-level maintenance switch, this first policy may temporarily block the whole kiosk if either mapped printer is faulty. Do not claim per-printer maintenance until order creation and printer selection enforce per-queue health on the Raspberry Pi.
-- If the Raspberry Pi, CUPS, network, or monitoring process itself is unavailable, fail closed for new orders and create an admin alert once communications recover. No monitoring system can deliver an immediate notification while the Pi has no power/network; persist the fault locally and send it on recovery.
+- If CUPS/API probes fail repeatedly while the Pi is running, the worker eventually fails closed and sends an alert. If the Pi loses power or all network access, a local worker cannot transmit an immediate alert; the queued alert sends after service returns. An immediate alert for a completely dead Pi requires a separately hosted external watchdog and configured alert credentials; this candidate does not claim that external watchdog is deployed.
+
+## Step 3 code review checkpoint (2026-10-23)
+
+- Added explicit device-connection / missing-device / CUPS backend-filter reason handling.
+- If pycups raises during connection/query, the health probe now falls back to bounded `lpstat` checks instead of immediately returning `unknown` without trying fallback.
+- String-valued `printer-state-reasons` and false-looking `printer-is-accepting-jobs` values are normalized.
+- Queue health remains fail-closed: an empty configured queue map cannot clear automatic maintenance, and any mapped unhealthy queue keeps kiosk-wide maintenance on.
+- Automated alert retries are persisted in SQLite. Candidate tests cover alert success/failure retry, manual-maintenance ownership, multi-queue maintenance gating and captured-payment quarantine when maintenance activates.
+
+This is still a saved-source candidate. It has not been installed or tested against the actual printer, live CUPS, live Telegram/Twilio channels or a separate external Pi-availability monitor.
 
 ## Release test matrix
 
@@ -97,8 +107,8 @@ Initial rollout should fail safe at kiosk level until per-printer routing is enf
 
 The web branch adds fail-closed API routing, token-safe exit cleanup, persistent claim-replay recovery, visible-session heartbeats, draft-session cancellation, a pre-payment cancel control, order recovery, and a required checkout-start handshake. Vercel reports the Preview branch deployment as READY at the latest commit, but full browser/E2E verification has not been completed through the connected deployment inspector.
 
-An **isolated backend candidate** and a dependency-stubbed test harness are being prepared outside this website repository. The candidate is based on a saved `app.py.payment-security-merged-review-v3_4_6.py` snapshot from 17 October 2026, not a byte-for-byte capture of the active Raspberry Pi `/home/arkout/printpod-kiosk/printpod_local/app.py` that was confirmed on 23 October. The candidate's 25 unit tests pass against temporary SQLite with mocked Flask/Razorpay/CUPS dependencies, including heartbeat lease refresh and invalid-token rejection; this does not establish real CORS, provider, CUPS, systemd, or physical-printer correctness.
+An **isolated backend candidate** and a dependency-stubbed test harness are being prepared outside this website repository. The candidate is based on a saved `app.py.payment-security-merged-review-v3_4_6.py` snapshot from 17 October 2026, not a byte-for-byte capture of the active Raspberry Pi `/home/arkout/printpod-kiosk/printpod_local/app.py` that was confirmed on 23 October. The current Step 3 candidate's 29 unit tests pass against temporary SQLite with mocked Flask/Razorpay/CUPS dependencies, including heartbeat lease refresh, invalid-token rejection, printer device-connectivity faults, bounded pycups-to-lpstat fallback, multi-queue fail-closed behavior, and no-queue recovery safety. These tests do not establish real CORS, provider, CUPS, systemd, or physical-printer correctness.
 
-**Do not install the candidate by overwriting the live file.** Re-read and back up the actual active source, rebase/reconcile the patch against it, and run all tests on the exact merged candidate in an isolated staging environment. The following are still release blockers until deployed and verified on staging: `/api/mark-payment-started`, `/api/recover-order`, `/api/authorize-resume`, `/api/cancel-order`, `/api/session-heartbeat`, durable critical-payment alerts, and automatic Raspberry Pi printer maintenance/notifications.
+**Do not install the candidate by overwriting the live file.** Re-read and back up the actual active source, rebase/reconcile the patch against it, and run all tests on the exact merged candidate in an isolated staging environment. The backend candidate now contains `/api/mark-payment-started`, `/api/recover-order`, `/api/authorize-resume`, `/api/cancel-order`, and `/api/session-heartbeat`, together with a durable critical-alert outbox and local automatic printer maintenance worker. These are candidate implementations—not live features. They remain release blockers until reconciled against the active source, deployed to isolated staging, and verified there.
 
 Production branch, current live `/print`, live Raspberry Pi service/database, Razorpay production flow, CUPS queues and physical printers have not been changed by these candidate edits. Keep this PR in draft and do not merge or promote it until the staging and hardware release matrix above passes.
