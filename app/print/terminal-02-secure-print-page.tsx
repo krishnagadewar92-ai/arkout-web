@@ -223,6 +223,7 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
   const [activeOrder, setActiveOrder] = useState<ActiveOrder | null>(null);
   const [canOpenCheckout, setCanOpenCheckout] = useState(false);
   const [canResumeSameOrder, setCanResumeSameOrder] = useState(false);
+  const [resumeToken, setResumeToken] = useState("");
   const [isUploading, setIsUploading] = useState(false);
   const [isPreparingOrder, setIsPreparingOrder] = useState(false);
   const [isCheckingStatus, setIsCheckingStatus] = useState(false);
@@ -605,6 +606,13 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
 
   async function openCheckout() {
     if (!activeOrder || !sessionToken || !publicRazorpayKey || isOpeningCheckout) return;
+    const isAuthorizedResume = canResumeSameOrder;
+    const oneTimeResumeToken = resumeToken;
+    if (paymentMayHaveStarted(pin) && (!isAuthorizedResume || !oneTimeResumeToken)) {
+      setMessage("Payment may already have started. Check payment status and obtain a fresh one-time authorization before reopening checkout.");
+      setMessageKind("error");
+      return;
+    }
 
     setIsOpeningCheckout(true);
     try {
@@ -711,6 +719,7 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
           session_id: pin,
           session_token: sessionToken,
           order_id: activeOrder.id,
+          ...(isAuthorizedResume ? { resume_token: oneTimeResumeToken } : {}),
         }),
       });
       const startedData = await parseResponse(startedResponse);
@@ -724,6 +733,7 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
         // cancel the order. Exit cleanup treats inaccessible storage as unsafe.
       }
       setCanCancelOrder(false);
+      setResumeToken("");
       checkout.open();
     } catch (error) {
       setCanOpenCheckout(false);
@@ -740,6 +750,7 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
     setCanOpenCheckout(false);
     setCanResumeSameOrder(false);
     setCanCancelOrder(false);
+    setResumeToken("");
     setMessage("Checking order and payment status. This will not submit a print job.");
     setMessageKind("info");
 
@@ -758,19 +769,51 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
         throw new Error(messageFrom(data, "Could not retrieve order status. Do not pay again."));
       }
       if (data.status === "submitted") {
+        setCanResumeSameOrder(false);
+        setResumeToken("");
+        setCanCancelOrder(false);
         setSubmitted(true);
         setMessage(typeof data.message === "string" ? data.message : "This order has already been submitted. It will not be printed again.");
         setMessageKind("success");
       } else if (data.status === "processing") {
+        setCanResumeSameOrder(false);
+        setResumeToken("");
+        setCanCancelOrder(false);
         setMessage(typeof data.message === "string" ? data.message : "The print submission is still processing. Do not pay again.");
         setMessageKind("info");
       } else if (data.status === "awaiting_payment" && data.can_resume_same_order === true) {
-        setCanResumeSameOrder(true);
-        // Do not erase the first-checkout marker. A reconciled order may be resumed,
-        // but cancellation remains locked if checkout was ever handed to the gateway.
-        setCanCancelOrder(!paymentMayHaveStarted(pin));
-        setMessage("The server found no captured or unresolved payment attempt. You may resume this same order; cancellation is offered only when checkout was never started.");
-        setMessageKind("success");
+        const paymentWasStarted = data.payment_started === true || paymentMayHaveStarted(pin);
+        if (!paymentWasStarted) {
+          // The existing order was created, but checkout handoff was never recorded.
+          // It can be opened for the first time; the server still revalidates atomically.
+          setCanOpenCheckout(true);
+          setCanCancelOrder(true);
+          setCanResumeSameOrder(false);
+          setMessage("The server confirms this order has not entered checkout. You may continue to payment or cancel it.");
+          setMessageKind("success");
+        } else {
+          const authResponse = await fetch(apiUrl("/api/authorize-resume"), {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              session_id: pin,
+              session_token: sessionToken,
+              order_id: activeOrder.id,
+            }),
+          });
+          const authData = await parseResponse(authResponse);
+          if (!authResponse.ok || typeof authData.resume_token !== "string") {
+            setCanResumeSameOrder(false);
+            setCanCancelOrder(false);
+            throw new Error(messageFrom(authData, "Payment state was checked, but the server did not issue a one-time resume authorization. Do not pay again; check status later."));
+          }
+          setResumeToken(authData.resume_token);
+          setCanOpenCheckout(false);
+          setCanCancelOrder(false);
+          setCanResumeSameOrder(true);
+          setMessage("Payment status was reconciled. Resume the same order using this one-time authorization; no new order will be created.");
+          setMessageKind("success");
+        }
       } else {
         setMessage(
           messageFrom(
