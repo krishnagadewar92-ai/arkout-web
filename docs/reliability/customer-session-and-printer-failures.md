@@ -93,6 +93,12 @@ Initial rollout should fail safe at kiosk level until per-printer routing is enf
 9. Razorpay staging only; mocked printer submission; verify no production database, API, payment, queue, or physical printer is touched.
 10. Confirm the main branch, production aliases, live `/print`, Raspberry Pi service, and production DB remain unchanged during all Preview validation.
 
-## Status
+## Status (2026-10-23)
 
-The web branch adds fail-closed API routing, token-safe exit cleanup, draft-session cancellation, a pre-payment cancel control, and a required checkout-start handshake. The new checkout-start and cancel-order endpoints, plus automatic Raspberry Pi printer maintenance/alerts, still need to be implemented and tested on an isolated backend before real payment-flow testing or release.
+The web branch adds fail-closed API routing, token-safe exit cleanup, persistent claim-replay recovery, visible-session heartbeats, draft-session cancellation, a pre-payment cancel control, order recovery, and a required checkout-start handshake. Vercel reports the Preview branch deployment as READY at the latest commit, but full browser/E2E verification has not been completed through the connected deployment inspector.
+
+An **isolated backend candidate** and a dependency-stubbed test harness are being prepared outside this website repository. The candidate is based on a saved `app.py.payment-security-merged-review-v3_4_6.py` snapshot from 17 October 2026, not a byte-for-byte capture of the active Raspberry Pi `/home/arkout/printpod-kiosk/printpod_local/app.py` that was confirmed on 23 October. The candidate's 20 unit tests pass against temporary SQLite with mocked Flask/Razorpay/CUPS dependencies; this does not establish real CORS, provider, CUPS, systemd, or physical-printer correctness.
+
+**Do not install the candidate by overwriting the live file.** Re-read and back up the actual active source, rebase/reconcile the patch against it, and run all tests on the exact merged candidate in an isolated staging environment. The following are still release blockers until deployed and verified on staging: `/api/mark-payment-started`, `/api/recover-order`, `/api/authorize-resume`, `/api/cancel-order`, `/api/session-heartbeat`, durable critical-payment alerts, and automatic Raspberry Pi printer maintenance/notifications.
+
+Production branch, current live `/print`, live Raspberry Pi service/database, Razorpay production flow, CUPS queues and physical printers have not been changed by these candidate edits. Keep this PR in draft and do not merge or promote it until the staging and hardware release matrix above passes.
