@@ -8,7 +8,8 @@ import {
   Palette, Layers, Maximize, Lock, XCircle, Copy, Plus, Minus, Sparkles, Star
 } from "lucide-react";
 import Image from "next/image";
-import { useTerminalSession } from "../../hooks/useTerminalSession"; 
+import { useTerminalSession } from "../../hooks/useTerminalSession";
+import { getTerminalApiBaseUrl, isPreviewDeployment } from "../../lib/api-config";
 
 type AppStep = 'verify' | 'upload' | 'processing' | 'checkout' | 'success';
 
@@ -28,7 +29,7 @@ export default function Terminal01LegacyPrintPage() {
   const [pinError, setPinError] = useState("");
   const [isVerifying, setIsVerifying] = useState(false);
   
-  const [apiBaseUrl, setApiBaseUrl] = useState("https://api.arkout.in");
+  const [apiBaseUrl, setApiBaseUrl] = useState("");
 
   const [files, setFiles] = useState<File[]>([]);
   const [uploadedFilenames, setUploadedFilenames] = useState<string[]>([]); 
@@ -90,7 +91,21 @@ export default function Terminal01LegacyPrintPage() {
       return;
     }
 
-    const targetUrl = "https://api.arkout.in";
+    // Terminal 01 still contains a legacy client-side print trigger, so do not
+    // enable its real workflow in Preview. It must be migrated to server-verified
+    // payment confirmation before being tested against any backend.
+    if (isPreviewDeployment()) {
+      setPinError("Terminal 01 checkout is disabled in Preview until its payment flow is migrated to server-verified printing.");
+      setIsVerifying(false);
+      return;
+    }
+
+    const targetUrl = getTerminalApiBaseUrl(pinToVerify);
+    if (!targetUrl) {
+      setPinError("No approved Terminal 01 API endpoint is configured for this deployment.");
+      setIsVerifying(false);
+      return;
+    }
     setApiBaseUrl(targetUrl);
 
     try {
@@ -183,7 +198,7 @@ export default function Terminal01LegacyPrintPage() {
             }
           } catch (err) { console.error("Hardware trigger failed", err); }
         },
-        prefill: { name: "Arkout User", contact: "9999999999" }, theme: { color: "#000000" },
+        prefill: { name: "Arkout User", contact: "9999999999" }, theme: { color: "#11131a" },
         
         // Handles the user manually closing the Razorpay window
         modal: {
@@ -236,16 +251,27 @@ export default function Terminal01LegacyPrintPage() {
   };
 
   const resetApp = async () => {
+    // Release only when a real token is available; the backend rejects tokenless cleanup.
     try {
-      await fetch(`${apiBaseUrl}/api/abort`, { method: "POST", body: JSON.stringify({ session_id: pin }) });
-    } catch (e) { console.error("Abort failed"); }
+      const token = sessionStorage.getItem("arkout_session_token") || "";
+      if (apiBaseUrl && token && /^\\d{4}$/.test(pin)) {
+        await fetch(`${apiBaseUrl}/api/abort`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ session_id: pin, session_token: token }),
+          keepalive: true,
+        });
+      }
+    } catch {
+      // Idle lease expiry is the fallback if cleanup cannot reach the server.
+    }
 
     setFiles([]); setUploadedFilenames([]);
     setStep('verify'); setProgress(0); setPin("");
     setColorMode('bw'); setSides('single'); setMargin('standard'); 
     setBasePages(1); setCopies(1);
     setRating(0); setReviewText(""); setIsReviewSubmitted(false);
-    setApiBaseUrl("https://api.arkout.in");
+    setApiBaseUrl("");
   };
 
   if (!isSessionValid) {
@@ -263,9 +289,9 @@ export default function Terminal01LegacyPrintPage() {
       
       {/* BACKGROUND ADVERTISEMENT LAYER */}
       <div className={`absolute inset-0 transition-all duration-700 ease-in-out z-0 flex items-center justify-center overflow-hidden pointer-events-none ${step !== 'verify' ? 'blur-3xl scale-105 opacity-40' : 'blur-none opacity-100'}`}>
-        <div className="absolute inset-0 bg-gradient-to-tr from-cyan-900/20 via-black to-purple-900/20 z-10"></div>
+        <div className="absolute inset-0 bg-gradient-to-tr from-indigo-900/20 via-black to-purple-900/20 z-10"></div>
         <div className="relative z-0 flex flex-col items-center text-center p-12 max-w-4xl">
-          <span className="px-4 py-1.5 rounded-full bg-white/10 text-cyan-400 text-xs font-medium tracking-widest uppercase mb-4 backdrop-blur-md">Sponsored • Arkout Ecosystem</span>
+          <span className="px-4 py-1.5 rounded-full bg-white/10 text-indigo-400 text-xs font-medium tracking-widest uppercase mb-4 backdrop-blur-md">Sponsored • Arkout Ecosystem</span>
           <h1 className="text-5xl md:text-7xl font-bold tracking-tight text-transparent bg-clip-text bg-gradient-to-b from-white to-zinc-500 mb-6">
             The Future of Autonomous Printing.
           </h1>
@@ -279,7 +305,7 @@ export default function Terminal01LegacyPrintPage() {
         
         <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="text-center mb-6">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/[0.08] backdrop-blur-xl border border-white/10 text-xs font-medium text-zinc-300 mb-3 shadow-sm">
-            <Sparkles size={12} className="text-cyan-400" /> Arkout Secure Kiosk Node
+            <Sparkles size={12} className="text-indigo-400" /> Arkout Secure Kiosk Node
           </div>
         </motion.div>
 
@@ -293,7 +319,7 @@ export default function Terminal01LegacyPrintPage() {
               {/* STEP 0: PIN VERIFICATION */}
               {step === 'verify' && (
                 <motion.div key="verify" initial={{ opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, filter: "blur(10px)" }} className="flex flex-col w-full max-w-sm mx-auto items-center text-center justify-center my-auto">
-                  <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-white/10 to-white/[0.02] border border-white/15 flex items-center text-cyan-400 justify-center mb-5 shadow-inner">
+                  <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-white/10 to-white/[0.02] border border-white/15 flex items-center text-indigo-400 justify-center mb-5 shadow-inner">
                     <Lock size={28} />
                   </div>
                   <h3 className="text-2xl font-semibold tracking-tight text-white mb-2">Terminal Authentication</h3>
@@ -305,7 +331,7 @@ export default function Terminal01LegacyPrintPage() {
                     placeholder="••••" 
                     value={pin} 
                     onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))} 
-                    className="w-full bg-black/40 border border-white/15 rounded-2xl py-4 text-center text-3xl font-mono text-white tracking-[0.3em] focus:outline-none focus:border-cyan-400/80 focus:ring-4 focus:ring-cyan-500/20 transition-all mb-4 shadow-inner"
+                    className="w-full bg-black/40 border border-white/15 rounded-2xl py-4 text-center text-3xl font-mono text-white tracking-[0.3em] focus:outline-none focus:border-indigo-400/80 focus:ring-4 focus:ring-indigo-500/20 transition-all mb-4 shadow-inner"
                   />
                   {pinError && <p className="text-red-400 text-xs font-medium mb-4">{pinError}</p>}
 
@@ -325,7 +351,7 @@ export default function Terminal01LegacyPrintPage() {
                   <h3 className="text-xl font-semibold tracking-tight mb-2">Select Documents</h3>
                   <p className="text-sm text-zinc-400 mb-6">Upload PDFs, images, or documents for instant local rendering.</p>
 
-                  <label className="relative flex flex-col items-center justify-center w-full min-h-[14rem] p-6 border border-dashed border-white/20 rounded-3xl cursor-pointer transition-all duration-300 bg-black/30 hover:bg-black/50 hover:border-cyan-400/50 group">
+                  <label className="relative flex flex-col items-center justify-center w-full min-h-[14rem] p-6 border border-dashed border-white/20 rounded-3xl cursor-pointer transition-all duration-300 bg-black/30 hover:bg-black/50 hover:border-indigo-400/50 group">
                     {files.length === 0 ? (
                       <div className="flex flex-col items-center z-10">
                         <div className="p-4 rounded-2xl bg-white/5 border border-white/10 text-zinc-300 mb-4 group-hover:scale-105 transition-transform">
@@ -338,7 +364,7 @@ export default function Terminal01LegacyPrintPage() {
                       <div className="flex flex-col w-full gap-2.5 z-10 max-h-[160px] overflow-y-auto pr-1">
                         {files.map((f, i) => (
                           <div key={i} className="flex items-center gap-3 p-3 rounded-xl bg-white/5 border border-white/10">
-                            <FileText size={18} className="text-cyan-400 flex-shrink-0" />
+                            <FileText size={18} className="text-indigo-400 flex-shrink-0" />
                             <span className="text-xs font-medium text-zinc-200 truncate">{f.name}</span>
                           </div>
                         ))}
@@ -359,16 +385,16 @@ export default function Terminal01LegacyPrintPage() {
               {/* STEP 2: PROCESSING ANIMATION */}
               {step === 'processing' && (
                 <motion.div key="processing" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col items-center justify-center my-auto py-6">
-                  <div className="w-16 h-16 rounded-2xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400 mb-6">
+                  <div className="w-16 h-16 rounded-2xl bg-indigo-500/10 border border-indigo-500/30 flex items-center justify-center text-indigo-400 mb-6">
                     <Cpu size={32} className="animate-pulse" />
                   </div>
                   <div className="w-full max-w-sm mb-6">
                     <div className="flex justify-between text-xs font-medium text-zinc-400 mb-2">
                       <span>Secure Pipeline</span>
-                      <span className="text-cyan-400 font-mono">{progress}%</span>
+                      <span className="text-indigo-400 font-mono">{progress}%</span>
                     </div>
                     <div className="h-1.5 w-full bg-black/50 rounded-full overflow-hidden border border-white/10">
-                      <motion.div className="h-full bg-gradient-to-r from-cyan-400 to-blue-500 rounded-full" initial={{ width: 0 }} animate={{ width: `${progress}%` }} />
+                      <motion.div className="h-full bg-gradient-to-r from-indigo-400 to-blue-500 rounded-full" initial={{ width: 0 }} animate={{ width: `${progress}%` }} />
                     </div>
                   </div>
                   <p className="text-xs font-mono text-zinc-400 mb-8">{logText}</p>
@@ -398,7 +424,7 @@ export default function Terminal01LegacyPrintPage() {
                       <label className="text-[11px] text-zinc-400 font-semibold uppercase tracking-wider">Color Profile</label>
                       <div className="flex bg-black/40 p-1 rounded-2xl border border-white/10">
                         <button onClick={() => setColorMode('bw')} className={`flex-1 py-2.5 rounded-xl text-xs font-medium transition-all ${colorMode === 'bw' ? 'bg-white/10 text-white shadow-sm' : 'text-zinc-400'}`}>B&W (₹1.5)</button>
-                        <button onClick={() => setColorMode('color')} className={`flex-1 py-2.5 rounded-xl text-xs font-medium transition-all ${colorMode === 'color' ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30' : 'text-zinc-400'}`}>Color (₹7)</button>
+                        <button onClick={() => setColorMode('color')} className={`flex-1 py-2.5 rounded-xl text-xs font-medium transition-all ${colorMode === 'color' ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30' : 'text-zinc-400'}`}>Color (₹7)</button>
                       </div>
                     </div>
 
@@ -408,7 +434,7 @@ export default function Terminal01LegacyPrintPage() {
                         <label className="text-[11px] text-zinc-400 font-semibold uppercase tracking-wider">Borders</label>
                         <div className="flex bg-black/40 p-1 rounded-2xl border border-white/10">
                           <button onClick={() => setMargin('standard')} className={`flex-1 py-2.5 rounded-xl text-xs font-medium transition-all ${margin === 'standard' ? 'bg-white/10 text-white shadow-sm' : 'text-zinc-400'}`}>Standard (₹7)</button>
-                          <button onClick={() => setMargin('none')} className={`flex-1 py-2.5 rounded-xl text-xs font-medium transition-all ${margin === 'none' ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30' : 'text-zinc-400'}`}>Borderless (₹10)</button>
+                          <button onClick={() => setMargin('none')} className={`flex-1 py-2.5 rounded-xl text-xs font-medium transition-all ${margin === 'none' ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30' : 'text-zinc-400'}`}>Borderless (₹10)</button>
                         </div>
                       </div>
                     )}
@@ -426,7 +452,7 @@ export default function Terminal01LegacyPrintPage() {
                     <div className="space-y-1.5">
                       <label className="text-[11px] text-zinc-400 font-semibold uppercase tracking-wider flex justify-between">
                         <span>Copies</span>
-                        <span className="text-cyan-400">Max {maxCopies}</span>
+                        <span className="text-indigo-400">Max {maxCopies}</span>
                       </label>
                       <div className="flex bg-black/40 p-1 rounded-2xl border border-white/10 items-center justify-between px-3">
                         <button onClick={handleDecrementCopies} disabled={copies <= 1} className="p-2 text-zinc-400 hover:text-white disabled:opacity-30"><Minus size={16}/></button>
@@ -440,7 +466,7 @@ export default function Terminal01LegacyPrintPage() {
                   <div className="flex-1 flex flex-col justify-between p-6 bg-black/40 rounded-3xl border border-white/10">
                     <div className="space-y-2.5">
                       <div className="flex justify-between text-xs text-zinc-400"><span>Pages / Copy</span><span className="text-white">{basePages}</span></div>
-                      <div className="flex justify-between text-xs text-zinc-400"><span>Total Sheets</span><span className="text-cyan-400 font-semibold">{totalPages}</span></div>
+                      <div className="flex justify-between text-xs text-zinc-400"><span>Total Sheets</span><span className="text-indigo-400 font-semibold">{totalPages}</span></div>
                       <div className="pt-3 border-t border-white/10 flex justify-between items-baseline">
                         <span className="text-xs text-zinc-400 font-medium">Total Amount</span>
                         <span className="text-3xl font-bold tracking-tight text-white">₹{currentPrice.toFixed(2)}</span>
@@ -500,9 +526,9 @@ export default function Terminal01LegacyPrintPage() {
                               placeholder="Tell us what you loved or what we can improve..."
                               value={reviewText}
                               onChange={(e) => setReviewText(e.target.value)}
-                              className="w-full bg-black/50 border border-white/15 rounded-xl p-3 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-cyan-400/50 resize-none h-20"
+                              className="w-full bg-black/50 border border-white/15 rounded-xl p-3 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-indigo-400/50 resize-none h-20"
                             />
-                            <button onClick={handleReviewSubmit} className="w-full py-2.5 rounded-xl bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 text-xs font-semibold hover:bg-cyan-500/30 transition-all">
+                            <button onClick={handleReviewSubmit} className="w-full py-2.5 rounded-xl bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 text-xs font-semibold hover:bg-indigo-500/30 transition-all">
                               Submit Feedback
                             </button>
                           </motion.div>

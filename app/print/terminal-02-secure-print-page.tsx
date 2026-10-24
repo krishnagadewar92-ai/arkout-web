@@ -2,10 +2,53 @@
 
 import { ChangeEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { getTerminalApiBaseUrl } from "../../lib/api-config";
 import { AlertTriangle, ArrowLeft, CheckCircle2, FileText, LoaderCircle, LockKeyhole, Printer, ShieldCheck, UploadCloud } from "lucide-react";
 
-const API_BASE = "https://api2.arkout.in";
+const API_BASE = getTerminalApiBaseUrl("020000");
 const STORAGE_PREFIX = "arkout-terminal-02-session:";
+const PAYMENT_STARTED_SUFFIX = ":payment-may-have-started";
+const ORDER_CREATION_SUFFIX = ":order-creation-may-be-in-progress";
+const CLAIM_REQUEST_SUFFIX = ":claim-request-id";
+
+// Keep an idempotency secret before the first claim request. The backend stores only
+// its hash and replays the same token if the response is lost during navigation/reload.
+function getOrCreateClaimRequestId(pin: string): string {
+  const key = STORAGE_PREFIX + pin + CLAIM_REQUEST_SUFFIX;
+  try {
+    const stored = window.sessionStorage.getItem(key);
+    if (stored && /^[0-9a-f]{64}$/.test(stored)) return stored;
+    const bytes = new Uint8Array(32);
+    window.crypto.getRandomValues(bytes);
+    const claimRequestId = Array.from(bytes, byte => byte.toString(16).padStart(2, "0")).join("");
+    window.sessionStorage.setItem(key, claimRequestId);
+    if (window.sessionStorage.getItem(key) !== claimRequestId) {
+      throw new Error("Could not persist claim recovery ID");
+    }
+    return claimRequestId;
+  } catch {
+    throw new Error("Secure browser storage is unavailable. Enable session storage and scan the kiosk PIN again.");
+  }
+}
+
+// Share a single claim request if React remounts the page during development or navigation.
+const sessionClaimRequests = new Map<string, Promise<ApiPayload>>();
+
+async function claimSessionOnce(pin: string, claimRequestId: string): Promise<ApiPayload> {
+  const requestKey = pin + ":" + claimRequestId;
+  const existing = sessionClaimRequests.get(requestKey);
+  if (existing) return existing;
+  const request = fetch(apiUrl("/api/claim_session"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ session_id: pin, claim_request_id: claimRequestId }),
+  }).then(parseResponse).finally(() => {
+    // Keep the stable recovery ID in sessionStorage; only the in-flight promise is cleared.
+    sessionClaimRequests.delete(requestKey);
+  });
+  sessionClaimRequests.set(requestKey, request);
+  return request;
+}
 
 type PrintConfig = {
   colorMode: "bw" | "color";
@@ -54,7 +97,71 @@ type WindowWithRazorpay = Window & {
 };
 
 function apiUrl(path: string) {
+  if (!API_BASE) {
+    throw new Error("Preview is isolated: no approved Terminal 02 staging API is configured.");
+  }
   return API_BASE + path;
+}
+
+function paymentMayHaveStarted(pin: string): boolean {
+  try {
+    // Fail safe if storage is inaccessible: do not release a potentially paid order.
+    return window.sessionStorage.getItem(STORAGE_PREFIX + pin + PAYMENT_STARTED_SUFFIX) !== null;
+  } catch {
+    return true;
+  }
+}
+
+function orderCreationMayBeInProgress(pin: string): boolean {
+  try {
+    return window.sessionStorage.getItem(STORAGE_PREFIX + pin + ORDER_CREATION_SUFFIX) === "1";
+  } catch {
+    // If browser storage is unreliable, do not assume that order creation is absent.
+    return true;
+  }
+}
+
+function clearStorageFlag(key: string) {
+  try { window.sessionStorage.removeItem(key); } catch {}
+}
+
+/** Best-effort exit cleanup. The server remains the authority on payment and job state. */
+function sendExitCleanup(pin: string, storageKey: string) {
+  if (!API_BASE || !/^02\d{4}$/.test(pin)) return;
+  try {
+    if (paymentMayHaveStarted(pin) || orderCreationMayBeInProgress(pin)) return;
+
+    const raw = window.sessionStorage.getItem(storageKey);
+    if (!raw) return;
+    const saved = JSON.parse(raw) as { sessionToken?: unknown; order?: unknown };
+    if (typeof saved.sessionToken !== "string" || !saved.sessionToken) return;
+
+    const orderId =
+      saved.order && typeof saved.order === "object" &&
+      typeof (saved.order as ActiveOrder).id === "string"
+        ? (saved.order as ActiveOrder).id
+        : "";
+
+    const path = orderId ? "/api/cancel-order" : "/api/abort";
+    const payload = JSON.stringify({
+      session_id: pin,
+      session_token: saved.sessionToken,
+      ...(orderId ? { order_id: orderId, razorpay_order_id: orderId } : {}),
+      reason: "customer_left_before_payment",
+    });
+    // Use a keepalive fetch for JSON/CORS compatibility with the separate API origin.
+    // It remains best-effort; the server-side idle lease is still the fallback.
+    void fetch(API_BASE + path, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: payload,
+      keepalive: true,
+      mode: "cors",
+      credentials: "omit",
+    }).catch(() => undefined);
+  } catch {
+    // Network loss, blocked beacons, or storage failures fall back to server-side expiry.
+  }
 }
 
 function formatRupees(paise: number) {
@@ -79,14 +186,16 @@ async function parseResponse(response: Response): Promise<ApiPayload> {
   }
 }
 
-function saveSession(pin: string, token: string, order: ActiveOrder | null) {
+function saveSession(pin: string, token: string, order: ActiveOrder | null): boolean {
   try {
     window.sessionStorage.setItem(
       STORAGE_PREFIX + pin,
       JSON.stringify({ sessionToken: token, order }),
     );
+    return true;
   } catch {
-    // In-memory state remains usable if browser storage is unavailable.
+    // Recovery persistence is a payment safety requirement, not an optional cache.
+    return false;
   }
 }
 
@@ -145,10 +254,13 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
   const [activeOrder, setActiveOrder] = useState<ActiveOrder | null>(null);
   const [canOpenCheckout, setCanOpenCheckout] = useState(false);
   const [canResumeSameOrder, setCanResumeSameOrder] = useState(false);
+  const [resumeToken, setResumeToken] = useState("");
   const [isUploading, setIsUploading] = useState(false);
   const [isPreparingOrder, setIsPreparingOrder] = useState(false);
   const [isCheckingStatus, setIsCheckingStatus] = useState(false);
   const [isOpeningCheckout, setIsOpeningCheckout] = useState(false);
+  const [isCancellingOrder, setIsCancellingOrder] = useState(false);
+  const [canCancelOrder, setCanCancelOrder] = useState(false);
   const [message, setMessage] = useState("");
   const [messageKind, setMessageKind] = useState<"info" | "error" | "success">("info");
   const [submitted, setSubmitted] = useState(false);
@@ -163,14 +275,8 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
       setSessionLoading(true);
       setStartupError("");
       try {
-        const maintenanceResponse = await fetch(apiUrl("/api/maintenance"), {
-          cache: "no-store",
-        });
-        if (!maintenanceResponse.ok) {
-          throw new Error("Terminal 02 availability could not be confirmed.");
-        }
-        const maintenance = await parseResponse(maintenanceResponse);
-
+        // Restore order recovery state before any network call. A backend outage must
+        // never erase the user's order reference or make a new payment look safe.
         let restoredToken = "";
         let restoredOrder: ActiveOrder | null = null;
         try {
@@ -192,7 +298,7 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
             }
           }
         } catch {
-          // Ignore unusable browser state and require a fresh server claim below.
+          // Ignore corrupt browser state, but never try to resume a malformed order.
         }
 
         if (cancelled) return;
@@ -200,10 +306,135 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
           setSessionToken(restoredToken);
           setActiveOrder(restoredOrder);
           if (restoredOrder) {
-            setMessage("An existing order was found. Check its status before attempting payment again.");
+            setCanCancelOrder(!paymentMayHaveStarted(pin));
+            setMessage("An existing order was found. Check its payment status before attempting payment again.");
             setCanOpenCheckout(false);
           }
         }
+
+        if (restoredToken && !restoredOrder && orderCreationMayBeInProgress(pin)) {
+          // The previous browser request may have reached Razorpay even if its response
+          // was lost. Recover the reservation; never create a second order blindly.
+          let recovered = false;
+          for (let attempt = 0; attempt < 4 && !recovered; attempt += 1) {
+            const recoveryResponse = await fetch(apiUrl("/api/recover-order"), {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ session_id: pin, session_token: restoredToken }),
+            });
+            const recoveryData = await parseResponse(recoveryResponse);
+            if (recoveryResponse.status === 202 || recoveryData.status === "order_creation_pending") {
+              if (attempt < 3) await new Promise((resolve) => window.setTimeout(resolve, 3000));
+              continue;
+            }
+            if (!recoveryResponse.ok) {
+              throw new Error(messageFrom(recoveryData, "Order recovery is unavailable. Do not create another order or pay again."));
+            }
+            if (recoveryData.status === "no_order") {
+              clearStorageFlag(storageKey + ORDER_CREATION_SUFFIX);
+              // No reservation was found. End this session cleanly and require a fresh PIN.
+              const abortResponse = await fetch(apiUrl("/api/abort"), {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ session_id: pin, session_token: restoredToken }),
+              }).catch(() => null);
+              if (abortResponse && abortResponse.ok) {
+                const abortData = await parseResponse(abortResponse);
+                if (["aborted", "stale"].includes(String(abortData.status))) {
+                  try {
+                    window.sessionStorage.removeItem(storageKey);
+                    window.sessionStorage.removeItem(storageKey + PAYMENT_STARTED_SUFFIX);
+                    window.sessionStorage.removeItem(storageKey + ORDER_CREATION_SUFFIX);
+                  } catch {}
+                  setStartupError("The server found no registered order and released this session. Scan the new PIN on the kiosk before starting again.");
+                } else {
+                  setStartupError("No registered order was found, but session release was not confirmed. Refresh this page to retry cleanup; do not create another order.");
+                }
+              } else {
+                // Keep credentials if release could not be confirmed; do not strand a claimed PIN.
+                setStartupError("No registered order was found, but session release could not be confirmed. Refresh this page to retry cleanup; do not create another order.");
+              }
+              return;
+            }
+            if (recoveryData.status === "cancelled") {
+              try {
+                window.sessionStorage.removeItem(storageKey);
+                window.sessionStorage.removeItem(storageKey + PAYMENT_STARTED_SUFFIX);
+                window.sessionStorage.removeItem(storageKey + ORDER_CREATION_SUFFIX);
+              } catch {}
+              setStartupError("This order is already cancelled. Scan the current PIN on the kiosk to start a new session.");
+              return;
+            }
+            if (recoveryData.status === "submitted") {
+              // The server has a terminal accepted-submission record. Restore the receipt state,
+              // but never create or submit another job from recovery.
+              setSubmitted(true);
+              setActiveOrder(
+                typeof recoveryData.id === "string" &&
+                typeof recoveryData.amount === "number" &&
+                typeof recoveryData.currency === "string"
+                  ? { id: recoveryData.id, amount: recoveryData.amount, currency: recoveryData.currency }
+                  : null,
+              );
+              setCanCancelOrder(false);
+              setCanOpenCheckout(false);
+              setCanResumeSameOrder(false);
+              setMessage("The server confirms this order was already submitted. It will not be printed again.");
+              setMessageKind("success");
+              return;
+            }
+            if (
+              ["existing_order", "payment_review", "processing"].includes(String(recoveryData.status)) &&
+              typeof recoveryData.id === "string" &&
+              typeof recoveryData.amount === "number" &&
+              typeof recoveryData.currency === "string"
+            ) {
+              const recoveredOrder = {
+                id: recoveryData.id,
+                amount: recoveryData.amount,
+                currency: recoveryData.currency,
+              };
+              if (!saveSession(pin, restoredToken, recoveredOrder)) {
+                throw new Error("The order was recovered, but this browser cannot securely save its recovery details. Do not pay; retry with browser storage enabled.");
+              }
+              setActiveOrder(recoveredOrder);
+              setSessionToken(restoredToken);
+              setCanCancelOrder(recoveryData.status === "existing_order" &&
+                recoveryData.order_status === "created" &&
+                recoveryData.payment_started !== true);
+              if (recoveryData.payment_started === true || recoveryData.status === "payment_review" || recoveryData.status === "processing") {
+                try { window.sessionStorage.setItem(storageKey + PAYMENT_STARTED_SUFFIX, "1"); } catch {}
+              }
+              clearStorageFlag(storageKey + ORDER_CREATION_SUFFIX);
+              if (recoveryData.status === "processing") {
+                setCanCancelOrder(false);
+                setMessage("Your existing print submission is still being processed. Do not pay again or start another print.");
+                setMessageKind("info");
+              } else {
+                setMessage("Your previous order was recovered. Check its payment status before continuing.");
+              }
+              setCanOpenCheckout(false);
+              setCanResumeSameOrder(false);
+              recovered = true;
+              break;
+            }
+            throw new Error(messageFrom(recoveryData, "The order requires support review. Do not pay again."));
+          }
+          if (!recovered) {
+            throw new Error("Order creation is still being resolved. Do not create another order. Refresh this page to check the same order again.");
+          }
+        }
+
+        // Recover unresolved orders even if maintenance is now active. Status access is
+        // read-only; it must remain available so a paid customer can see what happened.
+        const maintenanceResponse = await fetch(apiUrl("/api/maintenance"), {
+          cache: "no-store",
+        });
+        if (!maintenanceResponse.ok) {
+          throw new Error("Terminal 02 availability could not be confirmed. Do not pay again; check any existing order when service returns.");
+        }
+        const maintenance = await parseResponse(maintenanceResponse);
+        if (cancelled) return;
 
         if (maintenance.enabled === true) {
           setMaintenanceMessage(
@@ -216,20 +447,19 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
 
         if (restoredToken) return;
 
-        const claimResponse = await fetch(apiUrl("/api/claim_session"), {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ session_id: pin }),
-        });
-        const claimData = await parseResponse(claimResponse);
-        if (!claimResponse.ok || typeof claimData.session_token !== "string") {
+        const claimRequestId = getOrCreateClaimRequestId(pin);
+        const claimData = await claimSessionOnce(pin, claimRequestId);
+        if (typeof claimData.session_token !== "string") {
           throw new Error(messageFrom(claimData, "Could not reserve this kiosk session. Scan the current QR code again."));
         }
-        if (cancelled) return;
 
         const token = claimData.session_token;
-        setSessionToken(token);
+        // A newly issued token represents a fresh session; clear any stale local payment marker.
+        try { window.sessionStorage.removeItem(storageKey + PAYMENT_STARTED_SUFFIX); } catch {}
+        // Persist before checking effect cancellation so a remounted page can restore the claim.
         saveSession(pin, token, null);
+        if (cancelled) return;
+        setSessionToken(token);
       } catch (error) {
         if (!cancelled) {
           setStartupError(
@@ -249,6 +479,62 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
     };
   }, [pin, storageKey]);
 
+  useEffect(() => {
+    const handlePageHide = () => sendExitCleanup(pin, storageKey);
+    const handlePopState = () => {
+      // Browser Back is often an SPA navigation and does not fire pagehide.
+      const currentPin = new URLSearchParams(window.location.search).get("pin") || "";
+      if (currentPin !== pin) sendExitCleanup(pin, storageKey);
+    };
+    window.addEventListener("pagehide", handlePageHide);
+    window.addEventListener("popstate", handlePopState);
+    return () => {
+      window.removeEventListener("pagehide", handlePageHide);
+      window.removeEventListener("popstate", handlePopState);
+    };
+  }, [pin, storageKey]);
+
+  // Keep an open, visible customer session alive. If the browser disappears and cleanup
+  // cannot reach the Pi, the server-side 15-minute idle lease releases the claim instead.
+  useEffect(() => {
+    if (!sessionToken || !API_BASE) return;
+    let stopped = false;
+
+    const heartbeat = async () => {
+      if (stopped || document.visibilityState !== "visible") return;
+      try {
+        const response = await fetch(apiUrl("/api/session-heartbeat"), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ session_id: pin, session_token: sessionToken }),
+          cache: "no-store",
+        });
+        if (response.status === 403) {
+          setCanOpenCheckout(false);
+          setCanResumeSameOrder(false);
+          setCanCancelOrder(false);
+          setMessage("This kiosk session has expired. Check the existing order status before doing anything else; do not pay again.");
+          setMessageKind("error");
+          if (!activeOrder) {
+            setStartupError("Your kiosk session expired. Return to the kiosk and scan its current PIN to start again.");
+          }
+        }
+      } catch {
+        // A missed heartbeat does not erase local recovery data; the server lease remains authoritative.
+      }
+    };
+
+    void heartbeat();
+    const interval = window.setInterval(() => { void heartbeat(); }, 60_000);
+    const onFocus = () => { void heartbeat(); };
+    window.addEventListener("focus", onFocus);
+    return () => {
+      stopped = true;
+      window.clearInterval(interval);
+      window.removeEventListener("focus", onFocus);
+    };
+  }, [pin, sessionToken, activeOrder]);
+
   const estimatedRupees = useMemo(() => {
     const rate =
       config.colorMode === "color"
@@ -259,9 +545,10 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
     return totalPages * config.copies * rate;
   }, [config, totalPages]);
 
-  function saveOrder(next: ActiveOrder | null, token = sessionToken) {
+  function saveOrder(next: ActiveOrder | null, token = sessionToken): boolean {
     setActiveOrder(next);
-    if (token) saveSession(pin, token, next);
+    if (!token) return false;
+    return saveSession(pin, token, next);
   }
 
   async function uploadDocuments(event: ChangeEvent<HTMLFormElement>) {
@@ -345,12 +632,26 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
       return;
     }
 
+    if (orderCreationMayBeInProgress(pin)) {
+      setMessage("An order request may already be in progress or its response was lost. Refresh this page to recover that same order; do not create or pay for a second order.");
+      setMessageKind("error");
+      return;
+    }
+
     setIsPreparingOrder(true);
     setMessage("");
+    let orderRequestSent = false;
     try {
+      // Reserve the browser-side recovery guard before any asynchronous step.
+      try {
+        window.sessionStorage.setItem(storageKey + ORDER_CREATION_SUFFIX, "1");
+      } catch {
+        throw new Error("Browser recovery storage is unavailable. No payment order was requested.");
+      }
       const scriptLoaded = await loadRazorpayScript();
       if (!scriptLoaded) throw new Error("The payment gateway could not be loaded. No order was created.");
 
+      orderRequestSent = true;
       const response = await fetch(apiUrl("/api/create-order"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -375,7 +676,9 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
             amount: data.amount,
             currency: data.currency,
           };
-          saveOrder(existing);
+          const persisted = saveOrder(existing);
+          if (persisted) clearStorageFlag(storageKey + ORDER_CREATION_SUFFIX);
+          setCanCancelOrder(false);
           setCanOpenCheckout(false);
           setCanResumeSameOrder(false);
         }
@@ -390,13 +693,24 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
       }
 
       const order = { id: data.id, amount: data.amount, currency: data.currency };
-      saveOrder(order);
+      const persisted = saveOrder(order);
+      if (!persisted) {
+        setCanCancelOrder(false);
+        setCanOpenCheckout(false);
+        throw new Error("An order was created but browser recovery details could not be saved. Do not pay; enable browser storage and refresh to recover this same order.");
+      }
+      clearStorageFlag(storageKey + ORDER_CREATION_SUFFIX);
+      setCanCancelOrder(true);
       setCanOpenCheckout(true);
       setCanResumeSameOrder(false);
       setMessage("Secure order ready. The amount below was calculated by the backend.");
       setMessageKind("success");
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Could not prepare the secure order.");
+      if (!orderRequestSent) clearStorageFlag(storageKey + ORDER_CREATION_SUFFIX);
+      const baseMessage = error instanceof Error ? error.message : "Could not prepare the secure order.";
+      setMessage(orderRequestSent && orderCreationMayBeInProgress(pin)
+        ? baseMessage + " The outcome may be unknown. Refresh this page to recover the same order; do not retry order creation or payment."
+        : baseMessage);
       setMessageKind("error");
     } finally {
       setIsPreparingOrder(false);
@@ -405,6 +719,13 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
 
   async function openCheckout() {
     if (!activeOrder || !sessionToken || !publicRazorpayKey || isOpeningCheckout) return;
+    const isAuthorizedResume = canResumeSameOrder;
+    const oneTimeResumeToken = resumeToken;
+    if (paymentMayHaveStarted(pin) && (!isAuthorizedResume || !oneTimeResumeToken)) {
+      setMessage("Payment may already have started. Check payment status and obtain a fresh one-time authorization before reopening checkout.");
+      setMessageKind("error");
+      return;
+    }
 
     setIsOpeningCheckout(true);
     try {
@@ -439,7 +760,7 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
         name: "Arkout Print Hub",
         description: "Terminal 02 secure printing",
         order_id: activeOrder.id,
-        theme: { color: "#0891b2" },
+        theme: { color: "#a7baff" },
         handler: async (payment) => {
           if (!payment.razorpay_order_id || !payment.razorpay_payment_id || !payment.razorpay_signature) {
             setMessage("Payment response was incomplete. Do not pay again; check the order status.");
@@ -501,6 +822,31 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
         );
         setMessageKind("error");
       });
+      // Mark the order at the backend before handing control to Razorpay/UPI.
+      // If this marker request fails, do not open payment and do not expose cancel
+      // as though the order were known unpaid.
+      const startedResponse = await fetch(apiUrl("/api/mark-payment-started"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          session_id: pin,
+          session_token: sessionToken,
+          order_id: activeOrder.id,
+          ...(isAuthorizedResume ? { resume_token: oneTimeResumeToken } : {}),
+        }),
+      });
+      const startedData = await parseResponse(startedResponse);
+      if (!startedResponse.ok || startedData.status !== "payment_started") {
+        throw new Error(messageFrom(startedData, "The server could not reserve this payment attempt. Payment was not opened."));
+      }
+      try {
+        window.sessionStorage.setItem(storageKey + PAYMENT_STARTED_SUFFIX, "1");
+      } catch {
+        // Server-side marker is authoritative; inability to persist locally must not
+        // cancel the order. Exit cleanup treats inaccessible storage as unsafe.
+      }
+      setCanCancelOrder(false);
+      setResumeToken("");
       checkout.open();
     } catch (error) {
       setCanOpenCheckout(false);
@@ -516,6 +862,8 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
     setIsCheckingStatus(true);
     setCanOpenCheckout(false);
     setCanResumeSameOrder(false);
+    setCanCancelOrder(false);
+    setResumeToken("");
     setMessage("Checking order and payment status. This will not submit a print job.");
     setMessageKind("info");
 
@@ -534,16 +882,51 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
         throw new Error(messageFrom(data, "Could not retrieve order status. Do not pay again."));
       }
       if (data.status === "submitted") {
+        setCanResumeSameOrder(false);
+        setResumeToken("");
+        setCanCancelOrder(false);
         setSubmitted(true);
         setMessage(typeof data.message === "string" ? data.message : "This order has already been submitted. It will not be printed again.");
         setMessageKind("success");
       } else if (data.status === "processing") {
+        setCanResumeSameOrder(false);
+        setResumeToken("");
+        setCanCancelOrder(false);
         setMessage(typeof data.message === "string" ? data.message : "The print submission is still processing. Do not pay again.");
         setMessageKind("info");
       } else if (data.status === "awaiting_payment" && data.can_resume_same_order === true) {
-        setCanResumeSameOrder(true);
-        setMessage("No captured or unresolved payment attempt was found. You may resume checkout for this same order.");
-        setMessageKind("success");
+        const paymentWasStarted = data.payment_started === true || paymentMayHaveStarted(pin);
+        if (!paymentWasStarted) {
+          // The existing order was created, but checkout handoff was never recorded.
+          // It can be opened for the first time; the server still revalidates atomically.
+          setCanOpenCheckout(true);
+          setCanCancelOrder(true);
+          setCanResumeSameOrder(false);
+          setMessage("The server confirms this order has not entered checkout. You may continue to payment or cancel it.");
+          setMessageKind("success");
+        } else {
+          const authResponse = await fetch(apiUrl("/api/authorize-resume"), {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              session_id: pin,
+              session_token: sessionToken,
+              order_id: activeOrder.id,
+            }),
+          });
+          const authData = await parseResponse(authResponse);
+          if (!authResponse.ok || typeof authData.resume_token !== "string") {
+            setCanResumeSameOrder(false);
+            setCanCancelOrder(false);
+            throw new Error(messageFrom(authData, "Payment state was checked, but the server did not issue a one-time resume authorization. Do not pay again; check status later."));
+          }
+          setResumeToken(authData.resume_token);
+          setCanOpenCheckout(false);
+          setCanCancelOrder(false);
+          setCanResumeSameOrder(true);
+          setMessage("Payment status was reconciled. Resume the same order using this one-time authorization; no new order will be created.");
+          setMessageKind("success");
+        }
       } else {
         setMessage(
           messageFrom(
@@ -558,6 +941,80 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
       setMessageKind("error");
     } finally {
       setIsCheckingStatus(false);
+    }
+  }
+
+  async function cancelCurrentOrder() {
+    if (!activeOrder || !sessionToken || !canCancelOrder || isCancellingOrder) return;
+    setIsCancellingOrder(true);
+    setMessage("Checking with the server before cancelling. No print job will be submitted by this action.");
+    setMessageKind("info");
+    try {
+      const response = await fetch(apiUrl("/api/cancel-order"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          session_id: pin,
+          session_token: sessionToken,
+          order_id: activeOrder.id,
+          razorpay_order_id: activeOrder.id,
+        }),
+      });
+      const data = await parseResponse(response);
+      if (!response.ok || !["cancelled", "already_cancelled"].includes(String(data.status))) {
+        throw new Error(messageFrom(data, "The server could not safely cancel this order. Its status has been preserved; check payment status before retrying."));
+      }
+      try {
+        window.sessionStorage.removeItem(storageKey);
+        window.sessionStorage.removeItem(storageKey + PAYMENT_STARTED_SUFFIX);
+        window.sessionStorage.removeItem(storageKey + ORDER_CREATION_SUFFIX);
+      } catch {}
+      setMessage("Order cancelled. No new print submission was requested.");
+      setMessageKind("success");
+      setActiveOrder(null);
+      setSessionToken("");
+      setCanCancelOrder(false);
+      setCanOpenCheckout(false);
+      setCanResumeSameOrder(false);
+      setUploadedDocuments([]);
+      setTotalPages(0);
+      setFiles([]);
+      // A cancelled PIN is no longer usable. Return to the router for a fresh PIN.
+      window.setTimeout(() => window.location.assign("/"), 700);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Cancellation could not be confirmed. Do not pay again; check order status.");
+      setMessageKind("error");
+    } finally {
+      setIsCancellingOrder(false);
+    }
+  }
+
+  async function cancelDraftSession() {
+    if (!sessionToken || activeOrder || isCancellingOrder) return;
+    setIsCancellingOrder(true);
+    setMessage("Releasing this unpaid session…");
+    setMessageKind("info");
+    try {
+      const response = await fetch(apiUrl("/api/abort"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ session_id: pin, session_token: sessionToken }),
+      });
+      const data = await parseResponse(response);
+      if (!response.ok || !["aborted", "stale"].includes(String(data.status))) {
+        throw new Error(messageFrom(data, "The session could not be safely released. It will expire automatically if abandoned."));
+      }
+      try {
+        window.sessionStorage.removeItem(storageKey);
+        window.sessionStorage.removeItem(storageKey + PAYMENT_STARTED_SUFFIX);
+        window.sessionStorage.removeItem(storageKey + ORDER_CREATION_SUFFIX);
+      } catch {}
+      window.location.assign("/");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not release this session.");
+      setMessageKind("error");
+    } finally {
+      setIsCancellingOrder(false);
     }
   }
 
@@ -579,7 +1036,7 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
           <div className="mb-7 flex h-14 w-14 items-center justify-center rounded-2xl border border-amber-300/20 bg-amber-300/10 text-amber-200">
             {maintenanceMessage ? <LockKeyhole size={28} aria-hidden="true" /> : <AlertTriangle size={28} aria-hidden="true" />}
           </div>
-          <p className="text-xs font-bold uppercase tracking-[0.22em] text-cyan-300">Arkout Terminal 02</p>
+          <p className="text-xs font-bold uppercase tracking-[0.22em] text-indigo-300">Arkout Terminal 02</p>
           <h1 className="mt-3 text-3xl font-bold tracking-tight">{maintenanceMessage ? "Kiosk is under maintenance" : "Terminal 02 is temporarily unavailable"}</h1>
           <p className="mt-4 leading-7 text-slate-300">{maintenanceMessage || startupError}</p>
           {activeOrder && sessionToken && (
@@ -591,8 +1048,8 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
               {message && <p role="status" className="mt-3 text-sm leading-6 text-slate-300">{message}</p>}
             </div>
           )}
-          <div className="mt-6 flex items-start gap-3 text-sm leading-6 text-slate-400"><ShieldCheck size={19} className="mt-0.5 shrink-0 text-cyan-300" aria-hidden="true" /> No new checkout or print submission can be started while maintenance is enabled.</div>
-          <Link href="/" className="mt-8 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-white px-5 py-3 font-semibold text-slate-950 transition hover:bg-slate-200"><ArrowLeft size={17} aria-hidden="true" /> Back to Arkout</Link>
+          <div className="mt-6 flex items-start gap-3 text-sm leading-6 text-slate-400"><ShieldCheck size={19} className="mt-0.5 shrink-0 text-indigo-300" aria-hidden="true" /> No new checkout or print submission can be started while maintenance is enabled.</div>
+          <Link href="/" onClick={() => sendExitCleanup(pin, storageKey)} className="mt-8 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-white px-5 py-3 font-semibold text-slate-950 transition hover:bg-slate-200"><ArrowLeft size={17} aria-hidden="true" /> Back to Arkout</Link>
         </section>
       </main>
     );
@@ -606,7 +1063,7 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
           <h1 className="mt-5 text-3xl font-bold">Print submission confirmed</h1>
           <p className="mt-4 leading-7 text-slate-300">{message || "The server confirmed the verified payment and accepted the print submission."}</p>
           <p className="mt-3 text-sm text-slate-400">Do not submit or pay for this order again.</p>
-          <Link href="/" className="mt-8 inline-flex items-center justify-center gap-2 rounded-xl bg-white px-5 py-3 font-semibold text-slate-950"><ArrowLeft size={17} aria-hidden="true" /> Back to Arkout</Link>
+          <Link href="/" onClick={() => sendExitCleanup(pin, storageKey)} className="mt-8 inline-flex items-center justify-center gap-2 rounded-xl bg-white px-5 py-3 font-semibold text-slate-950"><ArrowLeft size={17} aria-hidden="true" /> Back to Arkout</Link>
         </section>
       </main>
     );
@@ -616,9 +1073,9 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
     <main className="min-h-screen bg-slate-950 px-4 py-10 text-white sm:px-6">
       <div className="mx-auto w-full max-w-3xl">
         <header className="mb-8 flex items-center gap-4">
-          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-cyan-300/20 bg-cyan-300/10 text-cyan-200"><Printer size={28} aria-hidden="true" /></div>
+          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-indigo-300/20 bg-indigo-300/10 text-indigo-200"><Printer size={28} aria-hidden="true" /></div>
           <div>
-            <p className="text-xs font-bold uppercase tracking-[0.22em] text-cyan-300">Arkout PrintPod · Terminal 02</p>
+            <p className="text-xs font-bold uppercase tracking-[0.22em] text-indigo-300">Arkout PrintPod · Terminal 02</p>
             <h1 className="mt-1 text-3xl font-bold tracking-tight">Secure printing checkout</h1>
             <p className="mt-1 text-sm text-slate-400">PIN session: {pin}</p>
           </div>
@@ -632,8 +1089,8 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
                   <h2 className="text-lg font-semibold">1. Upload documents</h2>
                   <p className="mt-1 text-sm leading-6 text-slate-400">PDFs and supported images only. Up to 10 files and 30 pages per print package.</p>
                 </div>
-                <label htmlFor="terminal-02-files" className="flex cursor-pointer flex-col items-center rounded-2xl border border-dashed border-white/20 bg-black/20 px-5 py-8 text-center hover:border-cyan-300/50">
-                  <UploadCloud size={30} className="text-cyan-300" aria-hidden="true" />
+                <label htmlFor="terminal-02-files" className="flex cursor-pointer flex-col items-center rounded-2xl border border-dashed border-white/20 bg-black/20 px-5 py-8 text-center hover:border-indigo-300/50">
+                  <UploadCloud size={30} className="text-indigo-300" aria-hidden="true" />
                   <span className="mt-3 font-semibold">{files.length ? files.length + " file(s) selected" : "Choose documents"}</span>
                   <span className="mt-1 text-sm text-slate-400">PDF, JPG, PNG, WebP or HEIC</span>
                   <input id="terminal-02-files" className="sr-only" type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.webp,.heic" onChange={(event) => setFiles(Array.from(event.target.files || []))} />
@@ -645,7 +1102,7 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
 
               {uploadedDocuments.length > 0 && (
                 <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-                  <div className="flex items-center gap-2 font-semibold"><FileText size={18} className="text-cyan-300" /> Server-registered documents</div>
+                  <div className="flex items-center gap-2 font-semibold"><FileText size={18} className="text-indigo-300" /> Server-registered documents</div>
                   <ul className="mt-3 space-y-2 text-sm text-slate-300">
                     {uploadedDocuments.map((doc) => <li key={doc.filename} className="flex justify-between gap-4"><span className="break-all">{doc.filename}</span><span className="shrink-0">{doc.pages} page(s)</span></li>)}
                   </ul>
@@ -684,12 +1141,12 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
                       </select>
                     </label>
                   </div>
-                  <div className="rounded-2xl border border-cyan-300/20 bg-cyan-300/[0.06] p-4">
+                  <div className="rounded-2xl border border-indigo-300/20 bg-indigo-300/[0.06] p-4">
                     <p className="text-sm text-slate-300">Estimated total</p>
                     <p className="mt-1 text-2xl font-bold">{formatRupees(Math.round(estimatedRupees * 100))}</p>
                     <p className="mt-1 text-xs leading-5 text-slate-400">Estimate only. The server's registered order amount is authoritative at checkout.</p>
                   </div>
-                  <button type="button" onClick={createSecureOrder} disabled={isPreparingOrder || !canUpload} className="w-full rounded-xl bg-cyan-300 px-5 py-3 font-bold text-slate-950 hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-50">
+                  <button type="button" onClick={createSecureOrder} disabled={isPreparingOrder || !canUpload || orderCreationMayBeInProgress(pin)} className="w-full rounded-xl bg-indigo-300 px-5 py-3 font-bold text-slate-950 hover:bg-indigo-200 disabled:cursor-not-allowed disabled:opacity-50">
                     {isPreparingOrder ? "Preparing secure order…" : "Create secure checkout"}
                   </button>
                 </div>
@@ -708,13 +1165,13 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
               </div>
 
               {canOpenCheckout && (
-                <button type="button" onClick={openCheckout} disabled={isOpeningCheckout} className="w-full rounded-xl bg-cyan-300 px-5 py-3 font-bold text-slate-950 hover:bg-cyan-200 disabled:opacity-50">
+                <button type="button" onClick={openCheckout} disabled={isOpeningCheckout} className="w-full rounded-xl bg-indigo-300 px-5 py-3 font-bold text-slate-950 hover:bg-indigo-200 disabled:opacity-50">
                   {isOpeningCheckout ? "Checking availability…" : "Continue to secure payment"}
                 </button>
               )}
 
               {canResumeSameOrder && (
-                <button type="button" onClick={openCheckout} disabled={isOpeningCheckout} className="w-full rounded-xl bg-cyan-300 px-5 py-3 font-bold text-slate-950 hover:bg-cyan-200 disabled:opacity-50">
+                <button type="button" onClick={openCheckout} disabled={isOpeningCheckout} className="w-full rounded-xl bg-indigo-300 px-5 py-3 font-bold text-slate-950 hover:bg-indigo-200 disabled:opacity-50">
                   {isOpeningCheckout ? "Checking availability…" : "Resume this same order"}
                 </button>
               )}
@@ -722,6 +1179,22 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
               <button type="button" onClick={checkPaymentStatus} disabled={isCheckingStatus} className="w-full rounded-xl border border-white/20 px-5 py-3 font-semibold hover:bg-white/10 disabled:opacity-50">
                 {isCheckingStatus ? "Checking payment status…" : "Check existing payment status"}
               </button>
+
+              {canCancelOrder && (
+                <button
+                  type="button"
+                  onClick={cancelCurrentOrder}
+                  disabled={isCancellingOrder || isOpeningCheckout || isCheckingStatus}
+                  className="w-full rounded-xl border border-rose-300/30 px-5 py-3 font-semibold text-rose-200 hover:bg-rose-400/10 disabled:opacity-50"
+                >
+                  {isCancellingOrder ? "Confirming cancellation…" : "Cancel order before payment"}
+                </button>
+              )}
+              {!canCancelOrder && (
+                <p className="text-xs leading-5 text-amber-200/80">
+                  Payment may have started. Check its status before attempting anything else; the order will not be cancelled automatically.
+                </p>
+              )}
             </div>
           )}
 
@@ -731,10 +1204,20 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
             </div>
           )}
 
-          <div className="flex items-start gap-3 border-t border-white/10 pt-5 text-xs leading-5 text-slate-400"><ShieldCheck size={17} className="mt-0.5 shrink-0 text-cyan-300" aria-hidden="true" /> Payment verification and print submission are performed by the Terminal 02 backend. This page never calls the direct-print endpoint.</div>
+          <div className="flex items-start gap-3 border-t border-white/10 pt-5 text-xs leading-5 text-slate-400"><ShieldCheck size={17} className="mt-0.5 shrink-0 text-indigo-300" aria-hidden="true" /> Payment verification and print submission are performed by the Terminal 02 backend. This page never calls the direct-print endpoint.</div>
         </section>
 
-        <Link href="/" className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-slate-400 hover:text-white"><ArrowLeft size={16} aria-hidden="true" /> Back to Arkout</Link>
+        {!activeOrder && (
+          <button
+            type="button"
+            onClick={cancelDraftSession}
+            disabled={!sessionToken || isCancellingOrder || isUploading || isPreparingOrder || orderCreationMayBeInProgress(pin)}
+            className="mt-6 inline-flex items-center gap-2 rounded-full border border-rose-300/20 px-4 py-2 text-xs font-semibold text-rose-200 hover:bg-rose-400/10 disabled:opacity-40"
+          >
+            {isCancellingOrder ? "Releasing session…" : "Cancel session and discard uploads"}
+          </button>
+        )}
+        <Link href="/" onClick={() => sendExitCleanup(pin, storageKey)} className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-slate-400 hover:text-white"><ArrowLeft size={16} aria-hidden="true" /> Back to Arkout</Link>
       </div>
     </main>
   );
