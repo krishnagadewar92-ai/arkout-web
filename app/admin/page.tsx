@@ -83,7 +83,30 @@ function queueJobs(status: Json | null): Job[] {
 }
 
 function recentUploads(data: Json | null): UploadItem[] {
-  return apiArray(data, ["uploads", "files", "recent", "documents"]).filter((x) => x && typeof x === "object");
+  if (!data || typeof data !== "object") return [];
+
+  // Admin API versions may wrap the same collection under data/result/payload,
+  // or call the collection items/results/records instead of uploads/files.
+  const containers: Json[] = [data];
+  for (const key of ["data", "result", "payload", "response"]) {
+    const value = data[key];
+    if (value && typeof value === "object" && !Array.isArray(value)) {
+      containers.push(value as Json);
+    }
+  }
+
+  const keys = ["uploads", "files", "recent", "documents", "items", "results", "records"];
+  let firstEmpty: UploadItem[] | null = null;
+  for (const container of containers) {
+    for (const key of keys) {
+      const value = container[key];
+      if (!Array.isArray(value)) continue;
+      const items = value.filter((item) => item && typeof item === "object") as UploadItem[];
+      if (items.length > 0) return items;
+      if (firstEmpty === null) firstEmpty = items;
+    }
+  }
+  return firstEmpty ?? [];
 }
 
 function formatRupees(value: unknown) {
