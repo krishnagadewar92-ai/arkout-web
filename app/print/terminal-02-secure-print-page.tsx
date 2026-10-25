@@ -7,6 +7,7 @@ import { AlertTriangle, ArrowLeft, CheckCircle2, FileText, LoaderCircle, LockKey
 const API_BASE = "https://api2.arkout.in";
 const STORAGE_PREFIX = "arkout-terminal-02-session:";
 const PENDING_ABORT_SUFFIX = ":pending-abort";
+const PENDING_CANCEL_SUFFIX = ":pending-cancel";
 
 type PrintConfig = {
   colorMode: "bw" | "color";
@@ -149,6 +150,7 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
   const [isUploading, setIsUploading] = useState(false);
   const [isPreparingOrder, setIsPreparingOrder] = useState(false);
   const [isCheckingStatus, setIsCheckingStatus] = useState(false);
+  const [isCancellingOrder, setIsCancellingOrder] = useState(false);
   const [isOpeningCheckout, setIsOpeningCheckout] = useState(false);
   const [message, setMessage] = useState("");
   const [messageKind, setMessageKind] = useState<"info" | "error" | "success">("info");
@@ -156,11 +158,13 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
 
   const storageKey = STORAGE_PREFIX + pin;
   const pendingAbortKey = storageKey + PENDING_ABORT_SUFFIX;
+  const pendingCancelKey = storageKey + PENDING_CANCEL_SUFFIX;
   const abortRequestedRef = useRef(false);
   const publicRazorpayKey = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || "";
 
-  // Only abandon an idle session. An active order, payment check, upload, or
-  // print submission must remain recoverable if the customer refreshes or leaves.
+  // Idle sessions are aborted directly. Sessions with an order use the
+  // provider-reconciled cancellation endpoint; the server refuses cancellation
+  // whenever a payment or print could still be active.
   const canAbortIdleSession = useCallback(() => {
     return Boolean(sessionToken) &&
       !activeOrder &&
@@ -179,24 +183,21 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
     isCheckingStatus,
   ]);
 
-  const clearPendingAbortMarker = useCallback(() => {
+  const clearSessionStorage = useCallback(() => {
     try {
       window.sessionStorage.removeItem(pendingAbortKey);
+      window.sessionStorage.removeItem(pendingCancelKey);
       window.sessionStorage.removeItem(storageKey);
     } catch {
-      // Browser storage can be unavailable; the token-verified server endpoint remains authoritative.
+      // The server remains authoritative if browser storage is unavailable.
     }
-  }, [pendingAbortKey, storageKey]);
+  }, [pendingAbortKey, pendingCancelKey, storageKey]);
 
-  // pagehide cannot wait for a response. Persist a one-time marker first, then
-  // queue a simple-content-type beacon (no CORS preflight) to the token-verified
-  // abort endpoint. The next document retries the abort before claiming a new session.
   const queueIdleSessionAbort = useCallback(() => {
     if (!canAbortIdleSession() || abortRequestedRef.current) return;
-
     abortRequestedRef.current = true;
-    const body = JSON.stringify({ session_id: pin, session_token: sessionToken });
 
+    const body = JSON.stringify({ session_id: pin, session_token: sessionToken });
     try {
       window.sessionStorage.setItem(
         pendingAbortKey,
@@ -204,13 +205,15 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
       );
       window.sessionStorage.removeItem(storageKey);
     } catch {
-      // The best-effort beacon below still works if storage is unavailable.
+      // Still attempt a best-effort server abort below.
     }
 
     let queued = false;
     try {
-      const payload = new Blob([body], { type: "text/plain;charset=UTF-8" });
-      queued = navigator.sendBeacon(apiUrl("/api/abort"), payload);
+      queued = navigator.sendBeacon(
+        apiUrl("/api/abort"),
+        new Blob([body], { type: "text/plain;charset=UTF-8" }),
+      );
     } catch {
       queued = false;
     }
@@ -223,20 +226,92 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
         cache: "no-store",
         keepalive: true,
       }).then((response) => {
-        // A 401 also means this session token is no longer active.
-        if (response.ok || response.status === 401) clearPendingAbortMarker();
+        if (response.ok || response.status === 401) clearSessionStorage();
       }).catch(() => {
-        // The pending marker lets the next page retry; navigation must never be blocked.
+        // The pending marker is retried by the next Terminal 02 page.
       });
     }
   }, [
     canAbortIdleSession,
-    clearPendingAbortMarker,
+    clearSessionStorage,
     pin,
     sessionToken,
     pendingAbortKey,
     storageKey,
   ]);
+
+  // For an order, ask the server to reconcile Razorpay before cancellation.
+  // A pending/captured/unknown payment results in a safe refusal, not data loss.
+  const queueActiveOrderCancellation = useCallback(() => {
+    if (!activeOrder || !sessionToken || submitted || abortRequestedRef.current) return;
+    abortRequestedRef.current = true;
+
+    const payload = {
+      session_id: pin,
+      session_token: sessionToken,
+      order_id: activeOrder.id,
+      razorpay_order_id: activeOrder.id,
+    };
+    const body = JSON.stringify(payload);
+
+    try {
+      window.sessionStorage.setItem(
+        pendingCancelKey,
+        JSON.stringify({ ...payload, requestedAt: Date.now() }),
+      );
+    } catch {
+      // Best-effort beacon still proceeds.
+    }
+
+    let queued = false;
+    try {
+      queued = navigator.sendBeacon(
+        apiUrl("/api/cancel-order"),
+        new Blob([body], { type: "text/plain;charset=UTF-8" }),
+      );
+    } catch {
+      queued = false;
+    }
+
+    if (!queued) {
+      void fetch(apiUrl("/api/cancel-order"), {
+        method: "POST",
+        headers: { "Content-Type": "text/plain;charset=UTF-8" },
+        body,
+        cache: "no-store",
+        keepalive: true,
+      }).then(async (response) => {
+        const data = await parseResponse(response);
+        // Clear the retry marker after a definitive response. On a refusal,
+        // preserve the stored order so the customer can check/recover it.
+        if (response.ok || (response.status >= 400 && response.status < 500)) {
+          try { window.sessionStorage.removeItem(pendingCancelKey); } catch {
+            // Ignore browser storage restrictions.
+          }
+        }
+        if (response.ok && ["cancelled", "already_cancelled"].includes(String(data.status))) {
+          clearSessionStorage();
+        }
+      }).catch(() => {
+        // The pending marker is resolved on the next Terminal 02 load.
+      });
+    }
+  }, [
+    activeOrder,
+    sessionToken,
+    submitted,
+    pin,
+    pendingCancelKey,
+    clearSessionStorage,
+  ]);
+
+  const queueLifecycleCleanup = useCallback(() => {
+    if (activeOrder) {
+      queueActiveOrderCancellation();
+    } else {
+      queueIdleSessionAbort();
+    }
+  }, [activeOrder, queueActiveOrderCancellation, queueIdleSessionAbort]);
 
   function handleBackToArkout(event: ReactMouseEvent<HTMLAnchorElement>) {
     // Preserve normal browser behavior for open-in-new-tab and modified clicks.
@@ -249,16 +324,14 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
     ) return;
 
     event.preventDefault();
-    queueIdleSessionAbort();
+    queueLifecycleCleanup();
     window.location.assign("/");
   }
 
   useEffect(() => {
-    const abortOnBrowserHistoryNavigation = () => queueIdleSessionAbort();
-    const abortOnPageExit = () => queueIdleSessionAbort();
+    const abortOnBrowserHistoryNavigation = () => queueLifecycleCleanup();
+    const abortOnPageExit = () => queueLifecycleCleanup();
     const reloadIfRestoredAfterAbort = (event: PageTransitionEvent) => {
-      // A BFCache-restored page may still hold the old in-memory token. Reload it
-      // so startup resolves the pending abort before attempting a fresh claim.
       if (event.persisted && abortRequestedRef.current) window.location.reload();
     };
 
@@ -270,7 +343,7 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
       window.removeEventListener("pagehide", abortOnPageExit);
       window.removeEventListener("pageshow", reloadIfRestoredAfterAbort);
     };
-  }, [queueIdleSessionAbort]);
+  }, [queueLifecycleCleanup]);
 
   useEffect(() => {
     let cancelled = false;
@@ -279,6 +352,67 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
       setSessionLoading(true);
       setStartupError("");
       try {
+        let pendingCancelProblem = "";
+        let pendingCancelPayload: {
+          sessionToken?: unknown;
+          order_id?: unknown;
+          razorpay_order_id?: unknown;
+        } | null = null;
+        try {
+          const cancelRaw = window.sessionStorage.getItem(pendingCancelKey);
+          if (cancelRaw) pendingCancelPayload = JSON.parse(cancelRaw);
+        } catch {
+          throw new Error("The previous order state could not be read safely. Check its payment status before starting a new session.");
+        }
+
+        if (
+          pendingCancelPayload &&
+          typeof pendingCancelPayload.sessionToken === "string" &&
+          typeof pendingCancelPayload.order_id === "string" &&
+          typeof pendingCancelPayload.razorpay_order_id === "string"
+        ) {
+          try {
+            const cancelResponse = await fetch(apiUrl("/api/cancel-order"), {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                session_id: pin,
+                session_token: pendingCancelPayload.sessionToken,
+                order_id: pendingCancelPayload.order_id,
+                razorpay_order_id: pendingCancelPayload.razorpay_order_id,
+              }),
+              cache: "no-store",
+            });
+            const cancelData = await parseResponse(cancelResponse);
+            if (
+              cancelResponse.ok &&
+              ["cancelled", "already_cancelled"].includes(String(cancelData.status))
+            ) {
+              try {
+                window.sessionStorage.removeItem(pendingCancelKey);
+                window.sessionStorage.removeItem(pendingAbortKey);
+                window.sessionStorage.removeItem(storageKey);
+              } catch {
+                // Server cancellation succeeded; storage cleanup is best effort.
+              }
+              window.location.replace("/");
+              return;
+            }
+
+            // A refusal means the order must be recovered, not force-cleared.
+            pendingCancelProblem = messageFrom(
+              cancelData,
+              "The previous order could not be cancelled safely. Check its payment status before retrying.",
+            );
+            try { window.sessionStorage.removeItem(pendingCancelKey); } catch {
+              // Preserve the saved order and token even if marker cleanup fails.
+            }
+          } catch {
+            // Preserve the order state and let the regular status-recovery UI load.
+            pendingCancelProblem = "We could not verify cancellation after leaving the page. Check the existing order status; do not pay again until it is resolved.";
+          }
+        }
+
         let pendingAbortToken = "";
         try {
           const pendingRaw = window.sessionStorage.getItem(pendingAbortKey);
@@ -349,7 +483,7 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
           setSessionToken(restoredToken);
           setActiveOrder(restoredOrder);
           if (restoredOrder) {
-            setMessage("An existing order was found. Check its status before attempting payment again.");
+            setMessage(pendingCancelProblem || "An existing order was found. Check its status before attempting payment again.");
             setCanOpenCheckout(false);
           }
         }
@@ -632,8 +766,9 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
           ondismiss: () => {
             setCanOpenCheckout(false);
             setCanResumeSameOrder(false);
-            setMessage("Checkout closed. Check payment status before trying again; do not pay again until the server confirms it is safe.");
+            setMessage("Checkout closed. Verifying payment status before any cancellation is allowed…");
             setMessageKind("info");
+            void checkPaymentStatus();
           },
         },
       });
@@ -646,9 +781,10 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
           (typeof description === "string" && description
             ? "Payment attempt failed: " + description + ". "
             : "Payment attempt failed. ") +
-            "Check payment status before retrying; do not create a new order.",
+            "Reconciling with the server before offering cancellation or retry.",
         );
-        setMessageKind("error");
+        setMessageKind("info");
+        void checkPaymentStatus();
       });
       checkout.open();
     } catch (error) {
@@ -707,6 +843,57 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
       setMessageKind("error");
     } finally {
       setIsCheckingStatus(false);
+    }
+  }
+
+  async function cancelCurrentOrder() {
+    if (!activeOrder || !sessionToken || isCancellingOrder || submitted) return;
+    const confirmed = window.confirm(
+      "Cancel this print order and end the kiosk session? Arkout will first reconcile Razorpay. If a payment is captured, pending, or uncertain, cancellation will be refused and the order will remain available for recovery.",
+    );
+    if (!confirmed) return;
+
+    setIsCancellingOrder(true);
+    setMessage("");
+    setMessageKind("info");
+    try {
+      const response = await fetch(apiUrl("/api/cancel-order"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          session_id: pin,
+          session_token: sessionToken,
+          order_id: activeOrder.id,
+          razorpay_order_id: activeOrder.id,
+        }),
+        cache: "no-store",
+      });
+      const data = await parseResponse(response);
+      if (
+        !response.ok ||
+        !["cancelled", "already_cancelled"].includes(String(data.status))
+      ) {
+        throw new Error(messageFrom(
+          data,
+          "Cancellation could not be confirmed. The order has been preserved; check payment status before trying again.",
+        ));
+      }
+
+      clearSessionStorage();
+      setMessage("Order cancelled and kiosk session closed.");
+      setMessageKind("success");
+      setActiveOrder(null);
+      setSessionToken("");
+      setUploadedDocuments([]);
+      setTotalPages(0);
+      window.location.assign("/");
+    } catch (error) {
+      setMessage(error instanceof Error
+        ? error.message
+        : "Could not cancel safely. The existing order has been preserved.");
+      setMessageKind("error");
+    } finally {
+      setIsCancellingOrder(false);
     }
   }
 
@@ -871,6 +1058,18 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
               <button type="button" onClick={checkPaymentStatus} disabled={isCheckingStatus} className="w-full rounded-xl border border-white/20 px-5 py-3 font-semibold hover:bg-white/10 disabled:opacity-50">
                 {isCheckingStatus ? "Checking payment status…" : "Check existing payment status"}
               </button>
+
+              <button
+                type="button"
+                onClick={() => void cancelCurrentOrder()}
+                disabled={isCancellingOrder || isCheckingStatus || !sessionToken}
+                className="w-full rounded-xl border border-rose-300/30 bg-rose-400/[0.08] px-5 py-3 font-semibold text-rose-100 hover:bg-rose-400/[0.14] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {isCancellingOrder ? "Verifying payment and cancelling…" : "Cancel order & end session"}
+              </button>
+              <p className="text-xs leading-5 text-slate-400">
+                Cancellation is permitted only after the server confirms that no payment or print is pending. If payment status is uncertain, your order will be preserved for recovery.
+              </p>
             </div>
           )}
 
