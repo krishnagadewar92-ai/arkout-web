@@ -1,6 +1,6 @@
 "use client";
 
-import { ChangeEvent, useEffect, useMemo, useState } from "react";
+import { ChangeEvent, MouseEvent as ReactMouseEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { AlertTriangle, ArrowLeft, CheckCircle2, FileText, LoaderCircle, LockKeyhole, Printer, ShieldCheck, UploadCloud } from "lucide-react";
 
@@ -155,6 +155,96 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
 
   const storageKey = STORAGE_PREFIX + pin;
   const publicRazorpayKey = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || "";
+
+  // Do not invalidate a session while a payment/order is active or a request is in flight.
+  // The backend abort endpoint also rejects aborts while a verified print is being submitted.
+  async function abortSessionBeforeLeaving() {
+    if (
+      !sessionToken ||
+      activeOrder ||
+      submitted ||
+      isUploading ||
+      isPreparingOrder ||
+      isOpeningCheckout ||
+      isCheckingStatus
+    ) return;
+
+    try {
+      const response = await fetch(apiUrl("/api/abort"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ session_id: pin, session_token: sessionToken }),
+        cache: "no-store",
+        keepalive: true,
+      });
+      if (response.ok) {
+        try { window.sessionStorage.removeItem(storageKey); } catch {
+          // Ignore storage restrictions; the server has still invalidated the token.
+        }
+      }
+    } catch {
+      // Navigation must not be blocked if the kiosk is temporarily unreachable.
+    }
+  }
+
+  async function handleBackToArkout(event: ReactMouseEvent<HTMLAnchorElement>) {
+    // Preserve normal browser behavior for open-in-new-tab and modified clicks.
+    if (
+      event.button !== 0 ||
+      event.metaKey ||
+      event.ctrlKey ||
+      event.shiftKey ||
+      event.altKey
+    ) return;
+
+    event.preventDefault();
+    await abortSessionBeforeLeaving();
+    window.location.assign("/");
+  }
+
+  useEffect(() => {
+    function abortOnBrowserHistoryNavigation() {
+      // Preserve active/unresolved checkout state so a customer can safely resume it.
+      if (
+        !sessionToken ||
+        activeOrder ||
+        submitted ||
+        isUploading ||
+        isPreparingOrder ||
+        isOpeningCheckout ||
+        isCheckingStatus
+      ) return;
+
+      void fetch(apiUrl("/api/abort"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ session_id: pin, session_token: sessionToken }),
+        cache: "no-store",
+        keepalive: true,
+      }).then((response) => {
+        if (response.ok) {
+          try { window.sessionStorage.removeItem(storageKey); } catch {
+            // Ignore storage restrictions; the server-side token is invalidated.
+          }
+        }
+      }).catch(() => {
+        // Browser Back must remain responsive if the kiosk API is unavailable.
+      });
+    }
+
+    window.addEventListener("popstate", abortOnBrowserHistoryNavigation);
+    return () => window.removeEventListener("popstate", abortOnBrowserHistoryNavigation);
+  }, [
+    pin,
+    sessionToken,
+    activeOrder,
+    submitted,
+    isUploading,
+    isPreparingOrder,
+    isOpeningCheckout,
+    isCheckingStatus,
+    storageKey,
+  ]);
 
   useEffect(() => {
     let cancelled = false;
@@ -592,7 +682,7 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
             </div>
           )}
           <div className="mt-6 flex items-start gap-3 text-sm leading-6 text-slate-400"><ShieldCheck size={19} className="mt-0.5 shrink-0 text-cyan-300" aria-hidden="true" /> No new checkout or print submission can be started while maintenance is enabled.</div>
-          <Link href="/" className="mt-8 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-white px-5 py-3 font-semibold text-slate-950 transition hover:bg-slate-200"><ArrowLeft size={17} aria-hidden="true" /> Back to Arkout</Link>
+          <Link href="/" onClick={handleBackToArkout} className="mt-8 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-white px-5 py-3 font-semibold text-slate-950 transition hover:bg-slate-200"><ArrowLeft size={17} aria-hidden="true" /> Back to Arkout</Link>
         </section>
       </main>
     );
@@ -606,7 +696,7 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
           <h1 className="mt-5 text-3xl font-bold">Print submission confirmed</h1>
           <p className="mt-4 leading-7 text-slate-300">{message || "The server confirmed the verified payment and accepted the print submission."}</p>
           <p className="mt-3 text-sm text-slate-400">Do not submit or pay for this order again.</p>
-          <Link href="/" className="mt-8 inline-flex items-center justify-center gap-2 rounded-xl bg-white px-5 py-3 font-semibold text-slate-950"><ArrowLeft size={17} aria-hidden="true" /> Back to Arkout</Link>
+          <Link href="/" onClick={handleBackToArkout} className="mt-8 inline-flex items-center justify-center gap-2 rounded-xl bg-white px-5 py-3 font-semibold text-slate-950"><ArrowLeft size={17} aria-hidden="true" /> Back to Arkout</Link>
         </section>
       </main>
     );
@@ -734,7 +824,7 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
           <div className="flex items-start gap-3 border-t border-white/10 pt-5 text-xs leading-5 text-slate-400"><ShieldCheck size={17} className="mt-0.5 shrink-0 text-cyan-300" aria-hidden="true" /> Payment verification and print submission are performed by the Terminal 02 backend. This page never calls the direct-print endpoint.</div>
         </section>
 
-        <Link href="/" className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-slate-400 hover:text-white"><ArrowLeft size={16} aria-hidden="true" /> Back to Arkout</Link>
+        <Link href="/" onClick={handleBackToArkout} className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-slate-400 hover:text-white"><ArrowLeft size={16} aria-hidden="true" /> Back to Arkout</Link>
       </div>
     </main>
   );
