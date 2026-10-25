@@ -1,6 +1,6 @@
 "use client";
 
-import { ChangeEvent, MouseEvent as ReactMouseEvent, useEffect, useMemo, useRef, useState } from "react";
+import { ChangeEvent, MouseEvent as ReactMouseEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { AlertTriangle, ArrowLeft, CheckCircle2, FileText, LoaderCircle, LockKeyhole, Printer, ShieldCheck, UploadCloud } from "lucide-react";
 
@@ -161,7 +161,7 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
 
   // Only abandon an idle session. An active order, payment check, upload, or
   // print submission must remain recoverable if the customer refreshes or leaves.
-  function canAbortIdleSession() {
+  const canAbortIdleSession = useCallback(() => {
     return Boolean(sessionToken) &&
       !activeOrder &&
       !submitted &&
@@ -169,21 +169,29 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
       !isPreparingOrder &&
       !isOpeningCheckout &&
       !isCheckingStatus;
-  }
+  }, [
+    sessionToken,
+    activeOrder,
+    submitted,
+    isUploading,
+    isPreparingOrder,
+    isOpeningCheckout,
+    isCheckingStatus,
+  ]);
 
-  function clearPendingAbortMarker() {
+  const clearPendingAbortMarker = useCallback(() => {
     try {
       window.sessionStorage.removeItem(pendingAbortKey);
       window.sessionStorage.removeItem(storageKey);
     } catch {
       // Browser storage can be unavailable; the token-verified server endpoint remains authoritative.
     }
-  }
+  }, [pendingAbortKey, storageKey]);
 
   // pagehide cannot wait for a response. Persist a one-time marker first, then
   // queue a simple-content-type beacon (no CORS preflight) to the token-verified
   // abort endpoint. The next document retries the abort before claiming a new session.
-  function queueIdleSessionAbort() {
+  const queueIdleSessionAbort = useCallback(() => {
     if (!canAbortIdleSession() || abortRequestedRef.current) return;
 
     abortRequestedRef.current = true;
@@ -221,7 +229,14 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
         // The pending marker lets the next page retry; navigation must never be blocked.
       });
     }
-  }
+  }, [
+    canAbortIdleSession,
+    clearPendingAbortMarker,
+    pin,
+    sessionToken,
+    pendingAbortKey,
+    storageKey,
+  ]);
 
   function handleBackToArkout(event: ReactMouseEvent<HTMLAnchorElement>) {
     // Preserve normal browser behavior for open-in-new-tab and modified clicks.
@@ -255,18 +270,7 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
       window.removeEventListener("pagehide", abortOnPageExit);
       window.removeEventListener("pageshow", reloadIfRestoredAfterAbort);
     };
-  }, [
-    pin,
-    sessionToken,
-    activeOrder,
-    submitted,
-    isUploading,
-    isPreparingOrder,
-    isOpeningCheckout,
-    isCheckingStatus,
-    storageKey,
-    pendingAbortKey,
-  ]);
+  }, [queueIdleSessionAbort]);
 
   useEffect(() => {
     let cancelled = false;
@@ -392,7 +396,7 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
     return () => {
       cancelled = true;
     };
-  }, [pin, storageKey]);
+  }, [pin, storageKey, pendingAbortKey]);
 
   const estimatedRupees = useMemo(() => {
     const rate =
