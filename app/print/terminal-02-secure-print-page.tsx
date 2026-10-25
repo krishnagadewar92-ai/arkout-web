@@ -826,9 +826,23 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
         setMessage(typeof data.message === "string" ? data.message : "The print submission is still processing. Do not pay again.");
         setMessageKind("info");
       } else if (data.status === "awaiting_payment" && data.can_resume_same_order === true) {
-        setCanResumeSameOrder(true);
-        setMessage("No captured or unresolved payment attempt was found. You may resume checkout for this same order.");
-        setMessageKind("success");
+        const providerStatuses = Array.isArray(data.provider_statuses)
+          ? data.provider_statuses.map((value: unknown) => String(value).toLowerCase())
+          : [];
+        const confirmedFailedAttempts =
+          providerStatuses.length > 0 &&
+          providerStatuses.every((status: string) => status === "failed");
+
+        if (confirmedFailedAttempts) {
+          setCanResumeSameOrder(false);
+          setMessage("Razorpay confirmed the payment failed. Cancelling this order and closing the kiosk session…");
+          setMessageKind("info");
+          void cancelCurrentOrder(false);
+        } else {
+          setCanResumeSameOrder(true);
+          setMessage("No captured or unresolved payment attempt was found. You may resume checkout for this same order.");
+          setMessageKind("success");
+        }
       } else {
         setMessage(
           messageFrom(
@@ -846,12 +860,14 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
     }
   }
 
-  async function cancelCurrentOrder() {
+  async function cancelCurrentOrder(requireConfirmation = true) {
     if (!activeOrder || !sessionToken || isCancellingOrder || submitted) return;
-    const confirmed = window.confirm(
-      "Cancel this print order and end the kiosk session? Arkout will first reconcile Razorpay. If a payment is captured, pending, or uncertain, cancellation will be refused and the order will remain available for recovery.",
-    );
-    if (!confirmed) return;
+    if (requireConfirmation) {
+      const confirmed = window.confirm(
+        "Cancel this print order and end the kiosk session? Arkout will first reconcile Razorpay. If a payment is captured, pending, or uncertain, cancellation will be refused and the order will remain available for recovery.",
+      );
+      if (!confirmed) return;
+    }
 
     setIsCancellingOrder(true);
     setMessage("");
