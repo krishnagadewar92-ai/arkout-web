@@ -1,11 +1,12 @@
 "use client";
 
-import { ChangeEvent, MouseEvent as ReactMouseEvent, useEffect, useMemo, useState } from "react";
+import { ChangeEvent, MouseEvent as ReactMouseEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { AlertTriangle, ArrowLeft, CheckCircle2, FileText, LoaderCircle, LockKeyhole, Printer, ShieldCheck, UploadCloud } from "lucide-react";
 
 const API_BASE = "https://api2.arkout.in";
 const STORAGE_PREFIX = "arkout-terminal-02-session:";
+const PENDING_ABORT_SUFFIX = ":pending-abort";
 
 type PrintConfig = {
   colorMode: "bw" | "color";
@@ -154,40 +155,90 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
   const [submitted, setSubmitted] = useState(false);
 
   const storageKey = STORAGE_PREFIX + pin;
+  const pendingAbortKey = storageKey + PENDING_ABORT_SUFFIX;
+  const abortRequestedRef = useRef(false);
   const publicRazorpayKey = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || "";
 
-  // Do not invalidate a session while a payment/order is active or a request is in flight.
-  // The backend abort endpoint also rejects aborts while a verified print is being submitted.
-  async function abortSessionBeforeLeaving() {
-    if (
-      !sessionToken ||
-      activeOrder ||
-      submitted ||
-      isUploading ||
-      isPreparingOrder ||
-      isOpeningCheckout ||
-      isCheckingStatus
-    ) return;
+  // Only abandon an idle session. An active order, payment check, upload, or
+  // print submission must remain recoverable if the customer refreshes or leaves.
+  const canAbortIdleSession = useCallback(() => {
+    return Boolean(sessionToken) &&
+      !activeOrder &&
+      !submitted &&
+      !isUploading &&
+      !isPreparingOrder &&
+      !isOpeningCheckout &&
+      !isCheckingStatus;
+  }, [
+    sessionToken,
+    activeOrder,
+    submitted,
+    isUploading,
+    isPreparingOrder,
+    isOpeningCheckout,
+    isCheckingStatus,
+  ]);
+
+  const clearPendingAbortMarker = useCallback(() => {
+    try {
+      window.sessionStorage.removeItem(pendingAbortKey);
+      window.sessionStorage.removeItem(storageKey);
+    } catch {
+      // Browser storage can be unavailable; the token-verified server endpoint remains authoritative.
+    }
+  }, [pendingAbortKey, storageKey]);
+
+  // pagehide cannot wait for a response. Persist a one-time marker first, then
+  // queue a simple-content-type beacon (no CORS preflight) to the token-verified
+  // abort endpoint. The next document retries the abort before claiming a new session.
+  const queueIdleSessionAbort = useCallback(() => {
+    if (!canAbortIdleSession() || abortRequestedRef.current) return;
+
+    abortRequestedRef.current = true;
+    const body = JSON.stringify({ session_id: pin, session_token: sessionToken });
 
     try {
-      const response = await fetch(apiUrl("/api/abort"), {
+      window.sessionStorage.setItem(
+        pendingAbortKey,
+        JSON.stringify({ sessionToken, requestedAt: Date.now() }),
+      );
+      window.sessionStorage.removeItem(storageKey);
+    } catch {
+      // The best-effort beacon below still works if storage is unavailable.
+    }
+
+    let queued = false;
+    try {
+      const payload = new Blob([body], { type: "text/plain;charset=UTF-8" });
+      queued = navigator.sendBeacon(apiUrl("/api/abort"), payload);
+    } catch {
+      queued = false;
+    }
+
+    if (!queued) {
+      void fetch(apiUrl("/api/abort"), {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ session_id: pin, session_token: sessionToken }),
+        headers: { "Content-Type": "text/plain;charset=UTF-8" },
+        body,
         cache: "no-store",
         keepalive: true,
+      }).then((response) => {
+        // A 401 also means this session token is no longer active.
+        if (response.ok || response.status === 401) clearPendingAbortMarker();
+      }).catch(() => {
+        // The pending marker lets the next page retry; navigation must never be blocked.
       });
-      if (response.ok) {
-        try { window.sessionStorage.removeItem(storageKey); } catch {
-          // Ignore storage restrictions; the server has still invalidated the token.
-        }
-      }
-    } catch {
-      // Navigation must not be blocked if the kiosk is temporarily unreachable.
     }
-  }
+  }, [
+    canAbortIdleSession,
+    clearPendingAbortMarker,
+    pin,
+    sessionToken,
+    pendingAbortKey,
+    storageKey,
+  ]);
 
-  async function handleBackToArkout(event: ReactMouseEvent<HTMLAnchorElement>) {
+  function handleBackToArkout(event: ReactMouseEvent<HTMLAnchorElement>) {
     // Preserve normal browser behavior for open-in-new-tab and modified clicks.
     if (
       event.button !== 0 ||
@@ -198,53 +249,28 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
     ) return;
 
     event.preventDefault();
-    await abortSessionBeforeLeaving();
+    queueIdleSessionAbort();
     window.location.assign("/");
   }
 
   useEffect(() => {
-    function abortOnBrowserHistoryNavigation() {
-      // Preserve active/unresolved checkout state so a customer can safely resume it.
-      if (
-        !sessionToken ||
-        activeOrder ||
-        submitted ||
-        isUploading ||
-        isPreparingOrder ||
-        isOpeningCheckout ||
-        isCheckingStatus
-      ) return;
-
-      void fetch(apiUrl("/api/abort"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ session_id: pin, session_token: sessionToken }),
-        cache: "no-store",
-        keepalive: true,
-      }).then((response) => {
-        if (response.ok) {
-          try { window.sessionStorage.removeItem(storageKey); } catch {
-            // Ignore storage restrictions; the server-side token is invalidated.
-          }
-        }
-      }).catch(() => {
-        // Browser Back must remain responsive if the kiosk API is unavailable.
-      });
-    }
+    const abortOnBrowserHistoryNavigation = () => queueIdleSessionAbort();
+    const abortOnPageExit = () => queueIdleSessionAbort();
+    const reloadIfRestoredAfterAbort = (event: PageTransitionEvent) => {
+      // A BFCache-restored page may still hold the old in-memory token. Reload it
+      // so startup resolves the pending abort before attempting a fresh claim.
+      if (event.persisted && abortRequestedRef.current) window.location.reload();
+    };
 
     window.addEventListener("popstate", abortOnBrowserHistoryNavigation);
-    return () => window.removeEventListener("popstate", abortOnBrowserHistoryNavigation);
-  }, [
-    pin,
-    sessionToken,
-    activeOrder,
-    submitted,
-    isUploading,
-    isPreparingOrder,
-    isOpeningCheckout,
-    isCheckingStatus,
-    storageKey,
-  ]);
+    window.addEventListener("pagehide", abortOnPageExit);
+    window.addEventListener("pageshow", reloadIfRestoredAfterAbort);
+    return () => {
+      window.removeEventListener("popstate", abortOnBrowserHistoryNavigation);
+      window.removeEventListener("pagehide", abortOnPageExit);
+      window.removeEventListener("pageshow", reloadIfRestoredAfterAbort);
+    };
+  }, [queueIdleSessionAbort]);
 
   useEffect(() => {
     let cancelled = false;
@@ -253,6 +279,39 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
       setSessionLoading(true);
       setStartupError("");
       try {
+        let pendingAbortToken = "";
+        try {
+          const pendingRaw = window.sessionStorage.getItem(pendingAbortKey);
+          if (pendingRaw) {
+            const pending = JSON.parse(pendingRaw) as { sessionToken?: unknown };
+            if (typeof pending.sessionToken === "string") pendingAbortToken = pending.sessionToken;
+          }
+        } catch {
+          throw new Error("The previous kiosk session state could not be read safely. Reload this QR page or ask staff for help.");
+        }
+
+        if (pendingAbortToken) {
+          const abortResponse = await fetch(apiUrl("/api/abort"), {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ session_id: pin, session_token: pendingAbortToken }),
+            cache: "no-store",
+          });
+          const abortData = await parseResponse(abortResponse);
+          if (!abortResponse.ok && abortResponse.status !== 401) {
+            if (abortResponse.status === 409) {
+              throw new Error("The previous session may still be processing a print. Do not pay again; ask kiosk staff to verify its status.");
+            }
+            throw new Error(messageFrom(abortData, "Could not close the previous idle session safely. Reload the QR page or ask kiosk staff for help."));
+          }
+          try {
+            window.sessionStorage.removeItem(pendingAbortKey);
+            window.sessionStorage.removeItem(storageKey);
+          } catch {
+            // Continue only after the server confirmed abort or the token was already invalid.
+          }
+        }
+
         const maintenanceResponse = await fetch(apiUrl("/api/maintenance"), {
           cache: "no-store",
         });
@@ -337,7 +396,7 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
     return () => {
       cancelled = true;
     };
-  }, [pin, storageKey]);
+  }, [pin, storageKey, pendingAbortKey]);
 
   const estimatedRupees = useMemo(() => {
     const rate =
