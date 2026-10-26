@@ -31,7 +31,7 @@ function typeFromPathname(pathname: string) {
 function supportedPathname(pathname: string) {
   if (!pathname.startsWith(PREFIX) || pathname.includes("..") || pathname.includes("\\")) return false;
   const filename = pathname.slice(PREFIX.length);
-  return /^\d+-[0-9a-f-]{36}\.(jpg|jpeg|png|webp|gif|avif|heic|heif|mp4|m4v|mov|webm)$/i.test(filename);
+  return /^(?:pending\/)?\d+-[0-9a-f-]{36}\.(jpg|jpeg|png|webp|gif|avif|heic|heif|mp4|m4v|mov|webm)$/i.test(filename);
 }
 
 function isSupportedBlobPath(pathname: string) {
