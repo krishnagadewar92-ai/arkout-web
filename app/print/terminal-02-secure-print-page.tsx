@@ -748,7 +748,7 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
         cache: "no-store",
       });
       const startedData = await parseResponse(startedResponse);
-      if (!startedResponse.ok || startedData.status !== "payment_started") {
+      if (!startedResponse.ok) {
         throw new Error(messageFrom(
           startedData,
           "The payment attempt could not be recorded. Checkout was not opened; check the order status before retrying.",
