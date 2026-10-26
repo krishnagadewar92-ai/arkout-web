@@ -18,9 +18,9 @@ Do not place secret values in Git, frontend variables (anything prefixed with NE
 - /adv uses an HttpOnly, Secure-in-production, SameSite=Strict signed session cookie.
 - Login and state-changing endpoints require same-origin requests.
 - Upload tokens are generated only for an authenticated same-origin session and restricted to the arkout-ads/ path, supported media MIME type, and 50 MB maximum per file.
-- Uploads go directly from the browser to Vercel Blob, avoiding Vercel Functions' request-body limit for video files.
+- Uploads go directly from the browser to Vercel Blob under `arkout-ads/pending/`, avoiding Vercel Functions' request-body limit for video files. Submissions are hidden from kiosk playback until an authenticated admin approves them at `/admin/ads`.
 - Supported uploads: JPG/JPEG, PNG, WebP, GIF, AVIF, HEIC/HEIF, MP4, M4V, MOV, and WebM. HEIC/HEIF images are converted to JPEG in the upload browser when its native decoder supports them.
-- The public /api/adv/playlist endpoint is read-only and returns only supported assets inside the arkout-ads/ prefix, with media type and upload timestamp.
+- The public `/api/adv/playlist` endpoint is read-only and returns only supported assets inside `arkout-ads/approved/`, with media type and upload timestamp. Approval moves media into the approved prefix; rejection deletes the submitted media.
 - The kiosk consumer should show the playlist full-screen only while the kiosk is idle, fit portrait media to the vertical screen without cropping, hold images briefly, play videos to completion, and skip videos that the browser cannot decode.
 - For the vertically mounted kiosk, upload portrait media in a 9:16 ratio; 1080 × 1920 is recommended. Best cross-device video compatibility is MP4 containing H.264 video and AAC audio. MOV files are accepted, but iPhone HEVC/H.265 videos may not play on the Raspberry Pi's Chromium build; export those as Most Compatible/MP4 when needed.
 - Never connect this portal to customer-uploaded print documents, revenue data, payment routes, printer/CUPS controls, or maintenance controls.
