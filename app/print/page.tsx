@@ -34,6 +34,12 @@ export default function PrintRouterPage() {
     );
   }
 
+  // Preview pricing checks always use the safe, network-free Terminal 02 demo.
+  // Do not route any Preview PIN to either live terminal API.
+  if (process.env.NEXT_PUBLIC_DEPLOYMENT_STAGE === "preview") {
+    return <Terminal02SecurePrintPage pin={/^02\d{4}$/.test(routePin) ? routePin : "020000"} />;
+  }
+
   // Preserve Terminal 01's four-digit route and its existing api.arkout.in contract.
   if (/^\d{4}$/.test(routePin)) {
     return <Terminal01LegacyPrintPage />;
