@@ -39,8 +39,8 @@ export async function GET() {
     const base = piAdsBase();
 
     const ads = records
-      .filter((ad: { enabled?: boolean; filename?: string }) =>
-        ad.enabled === true &&
+      .filter((ad: { enabled?: boolean; approvalStatus?: string; filename?: string }) =>
+        ad.enabled === true && ad.approvalStatus === "approved" &&
         typeof ad.filename === "string" &&
         /^[0-9a-f]{32}\.(jpg|jpeg|png|webp|gif|avif|heic|heif|mp4|m4v|mov|webm)$/i.test(ad.filename),
       )
