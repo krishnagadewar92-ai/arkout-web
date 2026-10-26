@@ -537,8 +537,8 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
       config.colorMode === "color"
         ? config.margin === "none"
           ? 10
-          : 7
-        : 1.5;
+          : 8
+        : 2;
     return totalPages * config.copies * rate;
   }, [config, totalPages]);
 
