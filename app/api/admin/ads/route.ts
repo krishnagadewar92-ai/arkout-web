@@ -16,7 +16,7 @@ function authorized(request: NextRequest) {
   return isValidAdminSession(request.cookies.get(ADMIN_COOKIE_NAME)?.value);
 }
 function safeAssetPath(pathname: string) {
-  if (!pathname.startsWith(PREFIX) || pathname.includes("..") || pathname.includes("\\\\")) return false;
+  if (!pathname.startsWith(PREFIX) || pathname.includes("..") || pathname.includes("\\")) return false;
   if (pathname.startsWith(APPROVED_PREFIX)) return false;
   const name = pathname.slice(PREFIX.length);
   if (name.includes("/") && !name.startsWith("pending/")) return false;
