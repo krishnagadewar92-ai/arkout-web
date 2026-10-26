@@ -9,7 +9,7 @@ const configuredTerminal02Base = isPreview
       process.env.NEXT_PUBLIC_API_URL ||
       "https://api2.arkout.in"
     );
-const terminal02Base = configuredTerminal02Base.replace(/\\/+$/, "");
+const terminal02Base = configuredTerminal02Base.replace(/\/+$/, "");
 
 const nextConfig: NextConfig = {
   async rewrites() {
