@@ -4,7 +4,11 @@ import { ChangeEvent, MouseEvent as ReactMouseEvent, useCallback, useEffect, use
 import Link from "next/link";
 import { AlertTriangle, ArrowLeft, CheckCircle2, FileText, LoaderCircle, LockKeyhole, Printer, ShieldCheck, UploadCloud } from "lucide-react";
 
-const API_BASE = "https://api2.arkout.in";
+// Preview deployments must never call the live Raspberry Pi API.
+const IS_PREVIEW_DEPLOYMENT = process.env.NEXT_PUBLIC_DEPLOYMENT_STAGE === "preview";
+const API_BASE = IS_PREVIEW_DEPLOYMENT
+  ? (process.env.NEXT_PUBLIC_PREVIEW_TERMINAL_02_API_URL || "https://api2-staging.invalid")
+  : (process.env.NEXT_PUBLIC_API_URL || "https://api2.arkout.in");
 const STORAGE_PREFIX = "arkout-terminal-02-session:";
 const PENDING_ABORT_SUFFIX = ":pending-abort";
 const PENDING_CANCEL_SUFFIX = ":pending-cancel";
@@ -155,6 +159,7 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
   const [message, setMessage] = useState("");
   const [messageKind, setMessageKind] = useState<"info" | "error" | "success">("info");
   const [submitted, setSubmitted] = useState(false);
+  const [previewDemoPages, setPreviewDemoPages] = useState(1);
 
   const storageKey = STORAGE_PREFIX + pin;
   const pendingAbortKey = storageKey + PENDING_ABORT_SUFFIX;
@@ -349,6 +354,10 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
     let cancelled = false;
 
     async function initialiseSession() {
+      if (IS_PREVIEW_DEPLOYMENT) {
+        setSessionLoading(false);
+        return;
+      }
       setSessionLoading(true);
       setStartupError("");
       try {
@@ -537,8 +546,8 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
       config.colorMode === "color"
         ? config.margin === "none"
           ? 10
-          : 7
-        : 1.5;
+          : 8
+        : 2;
     return totalPages * config.copies * rate;
   }, [config, totalPages]);
 
@@ -960,6 +969,75 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
 
   const availableCopies = totalPages > 0 ? Math.max(1, Math.floor(30 / totalPages)) : 1;
   const canUpload = !activeOrder && !maintenanceMessage && !startupError && !sessionLoading;
+  const previewRate = config.colorMode === "color" ? (config.margin === "none" ? 10 : 8) : 2;
+  const previewEstimate = previewDemoPages * config.copies * previewRate;
+
+  if (IS_PREVIEW_DEPLOYMENT) {
+    return (
+      <main className="min-h-screen bg-slate-950 px-4 py-10 text-white sm:px-6">
+        <div className="mx-auto w-full max-w-3xl">
+          <header className="mb-8 flex items-center gap-4">
+            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-cyan-300/20 bg-cyan-300/10 text-cyan-200"><Printer size={28} aria-hidden="true" /></div>
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.22em] text-cyan-300">Arkout PrintPod · Terminal 02</p>
+              <h1 className="mt-1 text-3xl font-bold tracking-tight">Preview pricing check</h1>
+              <p className="mt-1 text-sm text-slate-400">PIN session: {pin}</p>
+            </div>
+          </header>
+          <section className="space-y-6 rounded-3xl border border-white/10 bg-white/[0.04] p-5 shadow-2xl sm:p-8">
+            <div className="rounded-2xl border border-amber-300/20 bg-amber-300/[0.08] p-4">
+              <p className="font-semibold text-amber-100">Preview-only mode · no live backend access</p>
+              <p className="mt-1 text-sm leading-6 text-slate-300">This screen verifies prices only. Uploads, Razorpay checkout and printer actions are disabled so Preview cannot create live orders.</p>
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold">Test print estimate</h2>
+              <p className="mt-1 text-sm leading-6 text-slate-400">Change the page count and settings to verify the local price calculation.</p>
+            </div>
+            <label className="block text-sm text-slate-300">Sample pages
+              <input type="number" min={1} max={30} value={previewDemoPages}
+                onChange={(event) => setPreviewDemoPages(Math.max(1, Math.min(30, Number(event.target.value) || 1)))}
+                className="mt-2 w-full rounded-xl border border-white/15 bg-slate-900 px-3 py-3 text-white" />
+            </label>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <label className="block text-sm text-slate-300">Colour mode
+                <select value={config.colorMode}
+                  onChange={(event) => setConfig({ ...config, colorMode: event.target.value as PrintConfig["colorMode"], margin: event.target.value === "bw" ? "standard" : config.margin })}
+                  className="mt-2 w-full rounded-xl border border-white/15 bg-slate-900 px-3 py-3 text-white">
+                  <option value="bw">Black &amp; white · ₹2/page</option>
+                  <option value="color">Colour · ₹8/page standard</option>
+                </select>
+              </label>
+              <label className="block text-sm text-slate-300">Copies
+                <select value={config.copies} onChange={(event) => setConfig({ ...config, copies: Number(event.target.value) })}
+                  className="mt-2 w-full rounded-xl border border-white/15 bg-slate-900 px-3 py-3 text-white">
+                  {Array.from({ length: Math.max(1, Math.floor(30 / previewDemoPages)) }, (_, index) => index + 1).map((count) => <option key={count} value={count}>{count}</option>)}
+                </select>
+              </label>
+              <label className="block text-sm text-slate-300">Sides
+                <select value={config.sides} onChange={(event) => setConfig({ ...config, sides: event.target.value as PrintConfig["sides"] })}
+                  className="mt-2 w-full rounded-xl border border-white/15 bg-slate-900 px-3 py-3 text-white">
+                  <option value="single">Single-sided</option><option value="double">Double-sided</option>
+                </select>
+              </label>
+              <label className="block text-sm text-slate-300">Margins
+                <select value={config.margin} disabled={config.colorMode === "bw"}
+                  onChange={(event) => setConfig({ ...config, margin: event.target.value as PrintConfig["margin"] })}
+                  className="mt-2 w-full rounded-xl border border-white/15 bg-slate-900 px-3 py-3 text-white disabled:opacity-50">
+                  <option value="standard">Standard · ₹8/page</option><option value="none">Borderless · ₹10/page</option>
+                </select>
+              </label>
+            </div>
+            <div className="rounded-2xl border border-cyan-300/20 bg-cyan-300/[0.06] p-4">
+              <p className="text-sm text-slate-300">Estimated total</p>
+              <p className="mt-1 text-3xl font-bold">{formatRupees(Math.round(previewEstimate * 100))}</p>
+              <p className="mt-1 text-xs leading-5 text-slate-400">Pricing preview only. No payment will be created and no document will be printed.</p>
+            </div>
+            <Link href="/" className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-white px-5 py-3 font-semibold text-slate-950 transition hover:bg-slate-200"><ArrowLeft size={17} aria-hidden="true" /> Back to Arkout</Link>
+          </section>
+        </div>
+      </main>
+    );
+  }
 
   if (sessionLoading) {
     return (

@@ -72,8 +72,8 @@ export default function Terminal01LegacyPrintPage() {
 
   const currentPrice = useMemo(() => {
     const safePages = totalPages > 0 ? totalPages : 1; 
-    let pricePerPage = 1.5;
-    if (colorMode === 'color') pricePerPage = margin === 'none' ? 10 : 7;
+    let pricePerPage = 2;
+    if (colorMode === 'color') pricePerPage = margin === 'none' ? 10 : 8;
     return safePages * pricePerPage;
   }, [totalPages, colorMode, margin]);
 
@@ -397,8 +397,8 @@ export default function Terminal01LegacyPrintPage() {
                     <div className="space-y-1.5">
                       <label className="text-[11px] text-zinc-400 font-semibold uppercase tracking-wider">Color Profile</label>
                       <div className="flex bg-black/40 p-1 rounded-2xl border border-white/10">
-                        <button onClick={() => setColorMode('bw')} className={`flex-1 py-2.5 rounded-xl text-xs font-medium transition-all ${colorMode === 'bw' ? 'bg-white/10 text-white shadow-sm' : 'text-zinc-400'}`}>B&W (₹1.5)</button>
-                        <button onClick={() => setColorMode('color')} className={`flex-1 py-2.5 rounded-xl text-xs font-medium transition-all ${colorMode === 'color' ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30' : 'text-zinc-400'}`}>Color (₹7)</button>
+                        <button onClick={() => setColorMode('bw')} className={`flex-1 py-2.5 rounded-xl text-xs font-medium transition-all ${colorMode === 'bw' ? 'bg-white/10 text-white shadow-sm' : 'text-zinc-400'}`}>B&W (₹2)</button>
+                        <button onClick={() => setColorMode('color')} className={`flex-1 py-2.5 rounded-xl text-xs font-medium transition-all ${colorMode === 'color' ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30' : 'text-zinc-400'}`}>Color (₹8)</button>
                       </div>
                     </div>
 
@@ -407,7 +407,7 @@ export default function Terminal01LegacyPrintPage() {
                       <div className="space-y-1.5">
                         <label className="text-[11px] text-zinc-400 font-semibold uppercase tracking-wider">Borders</label>
                         <div className="flex bg-black/40 p-1 rounded-2xl border border-white/10">
-                          <button onClick={() => setMargin('standard')} className={`flex-1 py-2.5 rounded-xl text-xs font-medium transition-all ${margin === 'standard' ? 'bg-white/10 text-white shadow-sm' : 'text-zinc-400'}`}>Standard (₹7)</button>
+                          <button onClick={() => setMargin('standard')} className={`flex-1 py-2.5 rounded-xl text-xs font-medium transition-all ${margin === 'standard' ? 'bg-white/10 text-white shadow-sm' : 'text-zinc-400'}`}>Standard (₹8)</button>
                           <button onClick={() => setMargin('none')} className={`flex-1 py-2.5 rounded-xl text-xs font-medium transition-all ${margin === 'none' ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30' : 'text-zinc-400'}`}>Borderless (₹10)</button>
                         </div>
                       </div>
