@@ -575,7 +575,8 @@ export default function ArkoutAdminPage() {
                     <button className="admin-secondary-button" disabled={busy} onClick={() => void operatorAction("api/uploads/cleanup-now","Clean expired uploads")}>Clean expired uploads</button>
                     <button className="admin-secondary-button" disabled={busy} onClick={() => void operatorAction("api/backup/run","Send backup to Telegram")}>Send backup to Telegram</button>
                   </div>
-                  <Link href="/adv" className="admin-portal-link">Manage kiosk advertisements <ChevronRight size={16} /></Link>
+                  <Link href="/admin/ads" className="admin-portal-link">Review & approve advertisements <ChevronRight size={16} /></Link>
+                  <Link href="/adv" className="admin-portal-link">Upload advertisements <ChevronRight size={16} /></Link>
                 </section>
 
                 <section className="admin-glass-panel">
