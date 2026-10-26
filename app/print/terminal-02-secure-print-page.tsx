@@ -4,7 +4,12 @@ import { ChangeEvent, MouseEvent as ReactMouseEvent, useCallback, useEffect, use
 import Link from "next/link";
 import { AlertTriangle, ArrowLeft, CheckCircle2, FileText, LoaderCircle, LockKeyhole, Printer, ShieldCheck, UploadCloud } from "lucide-react";
 
-const API_BASE = "https://api2.arkout.in";
+// Preview must never call the live Raspberry Pi API. The Preview environment
+// intentionally uses a non-routable sentinel until an isolated staging backend exists.
+const IS_PREVIEW_DEPLOYMENT = process.env.NEXT_PUBLIC_DEPLOYMENT_STAGE === "preview";
+const API_BASE = IS_PREVIEW_DEPLOYMENT
+  ? (process.env.NEXT_PUBLIC_PREVIEW_TERMINAL_02_API_URL || "https://api2-staging.invalid")
+  : (process.env.NEXT_PUBLIC_API_URL || "https://api2.arkout.in");
 const STORAGE_PREFIX = "arkout-terminal-02-session:";
 const PENDING_ABORT_SUFFIX = ":pending-abort";
 const PENDING_CANCEL_SUFFIX = ":pending-cancel";
