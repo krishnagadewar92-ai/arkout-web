@@ -1,11 +1,10 @@
-import { list } from "@vercel/blob";
 import { NextResponse } from "next/server";
+import { piAdsBase, piAdsFetch } from "@/lib/pi-ads";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const PREFIX = "arkout-ads/approved/";
-const EXTENSION_TYPES: Record<string, string> = {
+const TYPES: Record<string, string> = {
   jpg: "image/jpeg",
   jpeg: "image/jpeg",
   png: "image/png",
@@ -20,40 +19,44 @@ const EXTENSION_TYPES: Record<string, string> = {
   webm: "video/webm",
 };
 
-function typeFromPathname(pathname: string) {
-  const extension = pathname.split(".").pop()?.toLowerCase() || "";
-  return EXTENSION_TYPES[extension] || "";
+function errorResponse(message: string, status: number) {
+  return NextResponse.json(
+    { error: message },
+    { status, headers: { "Cache-Control": "no-store" } },
+  );
 }
 
 export async function GET() {
-  const token = process.env.BLOB_READ_WRITE_TOKEN;
-  if (!token) {
-    return NextResponse.json(
-      { error: "Advertisement playlist is not configured." },
-      { status: 503, headers: { "Cache-Control": "no-store" } },
-    );
-  }
-
   try {
-    const { blobs } = await list({ prefix: PREFIX, limit: 100, token });
-    const ads = blobs
-      .filter((blob) =>
-        blob.pathname.startsWith(PREFIX) &&
-        !blob.pathname.includes("..") &&
-        !blob.pathname.includes("\\") &&
-        Boolean(typeFromPathname(blob.pathname)),
+    const response = await piAdsFetch("/api/ads/manage");
+
+    if (!response.ok) {
+      return errorResponse("Advertisement playlist is temporarily unavailable.", 502);
+    }
+
+    const data = await response.json();
+    const records = Array.isArray(data.ads) ? data.ads : [];
+    const base = piAdsBase();
+
+    const ads = records
+      .filter((ad: { enabled?: boolean; filename?: string }) =>
+        ad.enabled === true &&
+        typeof ad.filename === "string" &&
+        /^[0-9a-f]{32}\.(jpg|jpeg|png|webp|gif|avif|heic|heif|mp4|m4v|mov|webm)$/i.test(ad.filename),
       )
-      .map((blob) => {
-        const contentType = typeFromPathname(blob.pathname);
+      .map((ad: { filename: string; contentType?: string; uploadedAt?: string; title?: string }) => {
+        const extension = ad.filename.split(".").pop()?.toLowerCase() || "";
+        const contentType = TYPES[extension];
+
         return {
-          url: blob.url,
-          pathname: blob.pathname,
+          url: `${base}/api/ads/media/${ad.filename}`,
+          pathname: `arkout-ads/approved/${ad.filename}`,
           contentType,
           type: contentType.startsWith("video/") ? "video" : "image",
-          uploadedAt: blob.uploadedAt.toISOString(),
+          uploadedAt: ad.uploadedAt || null,
+          caption: typeof ad.title === "string" ? ad.title.slice(0, 100) : "Advertisement",
         };
-      })
-      .sort((a, b) => b.uploadedAt.localeCompare(a.uploadedAt));
+      });
 
     return NextResponse.json(
       { ads, updatedAt: new Date().toISOString() },
@@ -66,9 +69,6 @@ export async function GET() {
       },
     );
   } catch {
-    return NextResponse.json(
-      { error: "Could not retrieve the advertisement playlist." },
-      { status: 502, headers: { "Cache-Control": "no-store" } },
-    );
+    return errorResponse("Could not connect to Pi advertisement storage.", 502);
   }
 }
