@@ -710,6 +710,51 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
       const scriptLoaded = await loadRazorpayScript();
       if (!scriptLoaded) throw new Error("The payment gateway could not be loaded. Do not pay again.");
 
+      // A resumed checkout must obtain a one-time server authorization first.
+      const resuming = canResumeSameOrder;
+      let resumeToken: string | undefined;
+      if (resuming) {
+        const resumeResponse = await fetch(apiUrl("/api/authorize-resume"), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            session_id: pin,
+            session_token: sessionToken,
+            order_id: activeOrder.id,
+          }),
+          cache: "no-store",
+        });
+        const resumeData = await parseResponse(resumeResponse);
+        if (!resumeResponse.ok || typeof resumeData.resume_token !== "string") {
+          throw new Error(messageFrom(
+            resumeData,
+            "The existing order is not yet safe to resume. Check payment status and try again later.",
+          ));
+        }
+        resumeToken = resumeData.resume_token;
+      }
+
+      // Record every checkout attempt before opening the external payment UI.
+      // If this fails, do not open Razorpay because the watchdog would lack a reliable timestamp.
+      const startedResponse = await fetch(apiUrl("/api/mark-payment-started"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          session_id: pin,
+          session_token: sessionToken,
+          order_id: activeOrder.id,
+          ...(resumeToken ? { resume_token: resumeToken } : {}),
+        }),
+        cache: "no-store",
+      });
+      const startedData = await parseResponse(startedResponse);
+      if (!startedResponse.ok) {
+        throw new Error(messageFrom(
+          startedData,
+          "The payment attempt could not be recorded. Checkout was not opened; check the order status before retrying.",
+        ));
+      }
+
       setCanOpenCheckout(false);
       setCanResumeSameOrder(false);
       const Checkout = (window as WindowWithRazorpay).Razorpay;
