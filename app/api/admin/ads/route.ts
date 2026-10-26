@@ -22,7 +22,7 @@ function safeAssetPath(pathname: string) {
   if (name.includes("/") && !name.startsWith("pending/")) return false;
   const filename = name.startsWith("pending/") ? name.slice("pending/".length) : name;
   const extension = filename.split(".").pop()?.toLowerCase() || "";
-  return /^\\d+-[0-9a-f-]{36}\\.[a-z0-9]+$/i.test(filename) && EXTENSIONS.has(extension);
+  return /^\d+-[0-9a-f-]{36}\.[a-z0-9]+$/i.test(filename) && EXTENSIONS.has(extension);
 }
 function contentType(pathname: string) {
   const ext = pathname.split(".").pop()?.toLowerCase();
