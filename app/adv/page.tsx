@@ -165,7 +165,7 @@ export default function AdvertisementPortalPage() {
         }
         // Keep the storage key random and extension-based; the API independently
         // validates both the user's session and the allowed extension/content type.
-        const pathname = "arkout-ads/" + Date.now() + "-" + makeUploadId() + "." + media.extension;
+        const pathname = "arkout-ads/pending/" + Date.now() + "-" + makeUploadId() + "." + media.extension;
         await uploadBlob(pathname, mediaFile, {
           access: "public",
           handleUploadUrl: "/api/adv/ads",
@@ -177,7 +177,7 @@ export default function AdvertisementPortalPage() {
       setFiles([]);
       const input = document.getElementById("ad-files") as HTMLInputElement | null;
       if (input) input.value = "";
-      setMessage(completed + (completed === 1 ? " advertisement uploaded." : " advertisements uploaded.") + " The kiosk playlist will rotate through available assets while idle.");
+      setMessage(completed + (completed === 1 ? " advertisement submitted." : " advertisements submitted.") + " They stay hidden from kiosk playback until an admin approves them in /admin/ads.");
       await loadAds();
     } catch (err) {
       const detail = err instanceof Error ? err.message : "Upload failed.";
