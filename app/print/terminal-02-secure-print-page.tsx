@@ -60,6 +60,10 @@ type WindowWithRazorpay = Window & {
 };
 
 function apiUrl(path: string) {
+  // In production, route Terminal 02 requests through Arkout's same-origin
+  // rewrite. This avoids browser CORS failures while preserving request bodies
+  // (including multipart uploads and sendBeacon cleanup requests).
+  if (!IS_PREVIEW_DEPLOYMENT) return `/api/terminal02-proxy${path}`;
   return API_BASE + path;
 }
 
