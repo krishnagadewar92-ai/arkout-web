@@ -65,7 +65,7 @@ export default function Terminal01LegacyPrintPage() {
   }, [colorMode]);
 
   const totalPages = basePages * copies;
-  const maxCopies = Math.floor(30 / basePages);
+  const maxCopies = Math.floor(60 / basePages);
 
   const handleIncrementCopies = () => { if (copies < maxCopies) setCopies(prev => prev + 1); };
   const handleDecrementCopies = () => { if (copies > 1) setCopies(prev => prev - 1); };
@@ -373,14 +373,14 @@ export default function Terminal01LegacyPrintPage() {
                   </div>
                   <p className="text-xs font-mono text-zinc-400 mb-8">{logText}</p>
                   
-                  {progress === 100 && basePages <= 30 && (
+                  {progress === 100 && basePages <= 60 && (
                     <button onClick={() => setStep('checkout')} className="w-full max-w-xs py-4 rounded-2xl font-semibold text-sm bg-white text-black hover:bg-zinc-200 transition-all shadow-lg flex items-center justify-center gap-2">
                       Configure Print <ChevronRight size={16} />
                     </button>
                   )}
-                  {progress === 100 && basePages > 30 && (
+                  {progress === 100 && basePages > 60 && (
                     <div className="text-center">
-                      <p className="text-red-400 text-xs mb-4 font-medium">Exceeds 30-page limit ({basePages} pages).</p>
+                      <p className="text-red-400 text-xs mb-4 font-medium">Exceeds 60-page limit ({basePages} pages).</p>
                       <button onClick={resetApp} className="px-6 py-3 rounded-xl bg-white/10 text-white text-xs font-medium">Restart</button>
                     </div>
                   )}
@@ -448,7 +448,7 @@ export default function Terminal01LegacyPrintPage() {
                     </div>
 
                     <div className="space-y-2 pt-4">
-                      <button onClick={handlePayment} disabled={isPaying || totalPages > 30} className="w-full py-4 rounded-2xl font-semibold text-sm bg-white text-black hover:bg-zinc-200 transition-all shadow-lg flex justify-center items-center gap-2">
+                      <button onClick={handlePayment} disabled={isPaying || totalPages > 60} className="w-full py-4 rounded-2xl font-semibold text-sm bg-white text-black hover:bg-zinc-200 transition-all shadow-lg flex justify-center items-center gap-2">
                         {isPaying ? <span>Authorizing...</span> : <><span>Pay via UPI / Card</span> <ChevronRight size={16} /></>}
                       </button>
                       <button onClick={resetApp} className="w-full py-2 text-zinc-500 text-xs hover:text-red-400 transition-colors">Cancel Session</button>
