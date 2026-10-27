@@ -611,7 +611,7 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
       setTotalPages(uploadedPageCount);
       setConfig((current) => ({
         ...current,
-        copies: Math.min(current.copies, Math.max(1, Math.floor(30 / uploadedPageCount))),
+        copies: Math.min(current.copies, Math.max(1, Math.floor(60 / uploadedPageCount))),
       }));
       setFiles([]);
       setMessage("Documents uploaded and registered to this kiosk session.");
@@ -971,7 +971,7 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
     }
   }
 
-  const availableCopies = totalPages > 0 ? Math.max(1, Math.floor(30 / totalPages)) : 1;
+  const availableCopies = totalPages > 0 ? Math.max(1, Math.floor(60 / totalPages)) : 1;
   const canUpload = !activeOrder && !maintenanceMessage && !startupError && !sessionLoading;
   const previewRate = config.colorMode === "color" ? (config.margin === "none" ? 10 : 8) : 2;
   const previewEstimate = previewDemoPages * config.copies * previewRate;
@@ -998,8 +998,8 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
               <p className="mt-1 text-sm leading-6 text-slate-400">Change the page count and settings to verify the local price calculation.</p>
             </div>
             <label className="block text-sm text-slate-300">Sample pages
-              <input type="number" min={1} max={30} value={previewDemoPages}
-                onChange={(event) => setPreviewDemoPages(Math.max(1, Math.min(30, Number(event.target.value) || 1)))}
+              <input type="number" min={1} max={60} value={previewDemoPages}
+                onChange={(event) => setPreviewDemoPages(Math.max(1, Math.min(60, Number(event.target.value) || 1)))}
                 className="mt-2 w-full rounded-xl border border-white/15 bg-slate-900 px-3 py-3 text-white" />
             </label>
             <div className="grid gap-4 sm:grid-cols-2">
@@ -1014,7 +1014,7 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
               <label className="block text-sm text-slate-300">Copies
                 <select value={config.copies} onChange={(event) => setConfig({ ...config, copies: Number(event.target.value) })}
                   className="mt-2 w-full rounded-xl border border-white/15 bg-slate-900 px-3 py-3 text-white">
-                  {Array.from({ length: Math.max(1, Math.floor(30 / previewDemoPages)) }, (_, index) => index + 1).map((count) => <option key={count} value={count}>{count}</option>)}
+                  {Array.from({ length: Math.max(1, Math.floor(60 / previewDemoPages)) }, (_, index) => index + 1).map((count) => <option key={count} value={count}>{count}</option>)}
                 </select>
               </label>
               <label className="block text-sm text-slate-300">Sides
@@ -1109,7 +1109,7 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
               <form onSubmit={uploadDocuments} className="space-y-4">
                 <div>
                   <h2 className="text-lg font-semibold">1. Upload documents</h2>
-                  <p className="mt-1 text-sm leading-6 text-slate-400">PDFs and supported images only. Up to 10 files and 30 pages per print package.</p>
+                  <p className="mt-1 text-sm leading-6 text-slate-400">PDFs and supported images only. Up to 10 files and 60 pages per print package.</p>
                 </div>
                 <label htmlFor="terminal-02-files" className="flex cursor-pointer flex-col items-center rounded-2xl border border-dashed border-white/20 bg-black/20 px-5 py-8 text-center hover:border-cyan-300/50">
                   <UploadCloud size={30} className="text-cyan-300" aria-hidden="true" />
