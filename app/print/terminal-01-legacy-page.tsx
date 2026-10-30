@@ -72,8 +72,8 @@ export default function Terminal01LegacyPrintPage() {
 
   const currentPrice = useMemo(() => {
     const safePages = totalPages > 0 ? totalPages : 1; 
-    let pricePerPage = 2;
-    if (colorMode === 'color') pricePerPage = margin === 'none' ? 10 : 8;
+    let pricePerPage = 1.5;
+    if (colorMode === 'color') pricePerPage = margin === 'none' ? 10 : 7;
     return safePages * pricePerPage;
   }, [totalPages, colorMode, margin]);
 
@@ -168,7 +168,7 @@ export default function Terminal01LegacyPrintPage() {
       if (!order.id) throw new Error("Order creation failed");
 
       const options = {
-        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID, 
+        key: process.env.NEXT_PUBLIC_TERMINAL_01_RAZORPAY_KEY_ID, 
         amount: order.amount, currency: order.currency,
         name: "Arkout Print Hub", description: `Secure Print - ${totalPages} Pages`,
         order_id: order.id,
