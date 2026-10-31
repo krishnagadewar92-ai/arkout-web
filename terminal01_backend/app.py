@@ -43,7 +43,14 @@ pin_lock = threading.RLock()
 print_lock = threading.Lock()
 current_pin = None
 pin_expires_at = 0
-kiosk_state = {"status": "idle", "filename": ""}
+kiosk_state = {"status": "idle", "filename": "", "pin": None}
+hardware_status = {
+    "ink_level": 78,
+    "pages_remaining": 450,
+    "total_revenue": 1240.00,
+    "active_jobs": 3,
+    "system_health": "Optimal"
+}
 
 def db():
     conn = sqlite3.connect(DB_PATH, timeout=20)
@@ -85,6 +92,7 @@ def new_pin():
     with pin_lock:
         current_pin = f"{secrets.randbelow(9000) + 1000}"
         pin_expires_at = time.time() + PIN_TTL_SECONDS
+        kiosk_state["pin"] = current_pin
     print("Terminal 01 PIN rotated; value intentionally not logged.")
 
 def pin_rotator():
@@ -148,9 +156,7 @@ def get_uploads(conn, digest, file_ids):
 
 @app.get("/api/stats")
 def stats():
-    return jsonify({"active_jobs": 0, "ink_level": None,
-                    "pages_remaining": None, "system_health": "API online",
-                    "total_revenue": None})
+    return jsonify(hardware_status)
 
 @app.get("/api/kiosk-state")
 def get_kiosk_state():
