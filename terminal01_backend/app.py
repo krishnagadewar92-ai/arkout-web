@@ -36,7 +36,7 @@ app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 30 * 1024 * 1024
 CORS(app, resources={r"/*": {"origins": [
     "https://arkout.in", "https://www.arkout.in",
-    re.compile(r"^https://[a-z0-9-]+\.vercel\.app$")
+    re.compile(r"^https://arkout-[a-z0-9-]+-arkout-web\.vercel\.app$")
 ]}})
 
 pin_lock = threading.RLock()
@@ -53,6 +53,11 @@ def db():
 
 def init_db():
     with db() as conn:
+        conn.execute("""CREATE TABLE IF NOT EXISTS transactions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            timestamp TEXT, filename TEXT, pages INTEGER,
+            color_mode TEXT, amount REAL
+        )""")
         conn.execute("""CREATE TABLE IF NOT EXISTS t01_sessions (
             token_hash TEXT PRIMARY KEY, created_at REAL NOT NULL,
             expires_at REAL NOT NULL, active INTEGER NOT NULL DEFAULT 1
