@@ -31,9 +31,9 @@ ORDER_TTL_SECONDS = 900
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 30 * 1024 * 1024
-CORS(app, resources={r"/api/*": {"origins": [
+CORS(app, resources={r"/*": {"origins": [
     "https://arkout.in", "https://www.arkout.in",
-    "https://arkout-web.vercel.app"
+    re.compile(r"^https://[a-z0-9-]+\.vercel\.app$")
 ]}})
 
 pin_lock = threading.RLock()
@@ -299,8 +299,21 @@ def confirm_payment():
             "razorpay_payment_id": payment_id,
             "razorpay_signature": signature
         })
+        payment = client.payment.fetch(payment_id)
+        if payment.get("order_id") != order_id:
+            return jsonify({"error": "Payment does not belong to this order"}), 400
+        with db() as conn:
+            expected = conn.execute(
+                "SELECT amount_paise FROM t01_orders WHERE order_id=? AND token_hash=?",
+                (order_id, digest)
+            ).fetchone()
+        if not expected or int(payment.get("amount", -1)) != int(expected["amount_paise"]):
+            return jsonify({"error": "Payment amount does not match the order"}), 400
+        if payment.get("status") != "captured":
+            return jsonify({"error": "Payment is not captured yet; check order status before retrying"}), 409
     except Exception:
-        return jsonify({"error": "Payment signature verification failed"}), 400
+        app.logger.exception("Razorpay verification failed for order %s", order_id)
+        return jsonify({"error": "Payment signature or capture verification failed"}), 400
 
     with print_lock:
         with db() as conn:
