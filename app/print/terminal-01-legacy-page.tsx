@@ -8,7 +8,6 @@ import {
   Palette, Layers, Maximize, Lock, XCircle, Copy, Plus, Minus, Sparkles, Star
 } from "lucide-react";
 import Image from "next/image";
-import { useTerminalSession } from "../../hooks/useTerminalSession"; 
 
 type AppStep = 'verify' | 'upload' | 'processing' | 'checkout' | 'success';
 
@@ -32,6 +31,8 @@ export default function Terminal01LegacyPrintPage() {
 
   const [files, setFiles] = useState<File[]>([]);
   const [uploadedFilenames, setUploadedFilenames] = useState<string[]>([]); 
+  const [uploadedFileIds, setUploadedFileIds] = useState<string[]>([]);
+  const [sessionToken, setSessionToken] = useState("");
   const [progress, setProgress] = useState(0);
   const [logText, setLogText] = useState("Initializing neural engine...");
 
@@ -48,7 +49,8 @@ export default function Terminal01LegacyPrintPage() {
   const [reviewText, setReviewText] = useState("");
   const [isReviewSubmitted, setIsReviewSubmitted] = useState(false);
 
-  const { isSessionValid, errorMessage } = useTerminalSession(pin);
+  const isSessionValid = true;
+  const errorMessage = "";
 
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -90,7 +92,7 @@ export default function Terminal01LegacyPrintPage() {
       return;
     }
 
-    const targetUrl = "https://api.arkout.in";
+    const targetUrl = process.env.NEXT_PUBLIC_TERMINAL_01_API_URL || "https://api.arkout.in";
     setApiBaseUrl(targetUrl);
 
     try {
@@ -100,9 +102,13 @@ export default function Terminal01LegacyPrintPage() {
         body: JSON.stringify({ pin: pinToVerify }),
       });
       if (response.ok) {
+        const data = await response.json();
+        if (!data.session_token) throw new Error("Session token missing");
+        setSessionToken(data.session_token);
         setStep('upload');
       } else {
-        setPinError("Invalid PIN. Check the kiosk screen.");
+        const data = await response.json().catch(() => ({}));
+        setPinError(data.error || "Invalid PIN. Check the kiosk screen.");
       }
     } catch (err) {
       setPinError("Cannot connect to Terminal 01.");
@@ -126,7 +132,7 @@ export default function Terminal01LegacyPrintPage() {
     try {
       setTimeout(() => { setProgress(25); setLogText("Analyzing document structure & pages..."); }, 400);
       
-      const response = await fetch(`${apiBaseUrl}/upload`, { method: "POST", body: formData });
+      const response = await fetch(`${apiBaseUrl}/upload`, { method: "POST", headers: { Authorization: `Bearer ${sessionToken}` }, body: formData });
 
       if (response.ok) {
         const data = await response.json();
@@ -135,6 +141,7 @@ export default function Terminal01LegacyPrintPage() {
 
         if (data.files && Array.isArray(data.files)) {
             setUploadedFilenames(data.files.map((f: any) => f.filename));
+            setUploadedFileIds(data.files.map((f: any) => f.file_id));
         }
 
         setCopies(1);
@@ -161,27 +168,41 @@ export default function Terminal01LegacyPrintPage() {
 
     try {
       const orderRes = await fetch(`${apiBaseUrl}/api/create-order`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ amount: currentPrice }),
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${sessionToken}` },
+        body: JSON.stringify({ file_ids: uploadedFileIds, copies, config: { colorMode, sides, margin, copies } }),
       });
       const order = await orderRes.json();
-      if (!order.id) throw new Error("Order creation failed");
+      if (!orderRes.ok || !order.id || !order.key_id) throw new Error(order.error || "Order creation failed");
 
       const options = {
-        key: process.env.NEXT_PUBLIC_TERMINAL_01_RAZORPAY_KEY_ID, 
+        key: order.key_id, 
         amount: order.amount, currency: order.currency,
         name: "Arkout Print Hub", description: `Secure Print - ${totalPages} Pages`,
         order_id: order.id,
-        handler: async function (response: any) {
-          setStep('success'); setIsPaying(false);
+        handler: async function (paymentResponse: any) {
           try {
-            for (const serverFilename of uploadedFilenames) {
-                await fetch(`${apiBaseUrl}/api/trigger-print`, {
-                  method: "POST", headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ filename: serverFilename, config: { colorMode, sides, margin, copies } }), 
-                });
+            const confirmRes = await fetch(`${apiBaseUrl}/api/confirm-payment`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json", Authorization: `Bearer ${sessionToken}` },
+              body: JSON.stringify({
+                razorpay_order_id: paymentResponse.razorpay_order_id,
+                razorpay_payment_id: paymentResponse.razorpay_payment_id,
+                razorpay_signature: paymentResponse.razorpay_signature
+              })
+            });
+            const confirmation = await confirmRes.json();
+            if (confirmation.status === "payment_review") {
+              alert(confirmation.message || "Payment received; operator review is required. Do not pay again.");
+              return;
             }
-          } catch (err) { console.error("Hardware trigger failed", err); }
+            if (!confirmRes.ok || confirmation.status !== "printed") {
+              throw new Error(confirmation.error || "Payment/print confirmation is pending. Do not pay again.");
+            }
+            setStep('success');
+          } catch (err: any) {
+            alert(err?.message || "Payment confirmation needs support. Do not pay again.");
+          } finally { setIsPaying(false); }
         },
         prefill: { name: "Arkout User", contact: "9999999999" }, theme: { color: "#000000" },
         
@@ -190,7 +211,7 @@ export default function Terminal01LegacyPrintPage() {
             ondismiss: function() {
                 setIsPaying(false); 
                 fetch(`${apiBaseUrl}/api/set-state`, {
-                    method: "POST", headers: { "Content-Type": "application/json" },
+                    method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${sessionToken}` }, 
                     body: JSON.stringify({ status: "processing" })
                 }).catch(() => {});
             }
@@ -200,7 +221,7 @@ export default function Terminal01LegacyPrintPage() {
       
       // Tell the Kiosk to show "Confirming Payment" right before the paywall opens
       fetch(`${apiBaseUrl}/api/set-state`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
+        method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${sessionToken}` }, 
         body: JSON.stringify({ status: "payment" })
       }).catch(() => {});
 
@@ -208,7 +229,7 @@ export default function Terminal01LegacyPrintPage() {
         alert("Payment Failed: " + response.error.description);
         setIsPaying(false);
         fetch(`${apiBaseUrl}/api/set-state`, {
-            method: "POST", headers: { "Content-Type": "application/json" },
+            method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${sessionToken}` }, 
             body: JSON.stringify({ status: "processing" })
         }).catch(() => {});
       });
@@ -237,10 +258,10 @@ export default function Terminal01LegacyPrintPage() {
 
   const resetApp = async () => {
     try {
-      await fetch(`${apiBaseUrl}/api/abort`, { method: "POST", body: JSON.stringify({ session_id: pin }) });
+      await fetch(`${apiBaseUrl}/api/session/abort`, { method: "POST", headers: { Authorization: `Bearer ${sessionToken}` } });
     } catch (e) { console.error("Abort failed"); }
 
-    setFiles([]); setUploadedFilenames([]);
+    setFiles([]); setUploadedFilenames([]); setUploadedFileIds([]); setSessionToken("");
     setStep('verify'); setProgress(0); setPin("");
     setColorMode('bw'); setSides('single'); setMargin('standard'); 
     setBasePages(1); setCopies(1);
@@ -297,7 +318,7 @@ export default function Terminal01LegacyPrintPage() {
                     <Lock size={28} />
                   </div>
                   <h3 className="text-2xl font-semibold tracking-tight text-white mb-2">Terminal Authentication</h3>
-                  <p className="text-sm text-zinc-400 mb-6 leading-relaxed">Enter the 4 or 6-digit PIN visible on the kiosk screen to establish a secure session.</p>
+                  <p className="text-sm text-zinc-400 mb-6 leading-relaxed">Enter the 4-digit PIN visible on Terminal 01 to establish a secure session.</p>
 
                   <input 
                     type="text" 
@@ -311,8 +332,8 @@ export default function Terminal01LegacyPrintPage() {
 
                   <button 
                     onClick={() => verifyTerminalPin(pin)} 
-                    disabled={(pin.length !== 4 && pin.length !== 6) || isVerifying} 
-                    className={`w-full py-4 rounded-2xl font-semibold text-sm tracking-wide flex justify-center items-center space-x-2 transition-all duration-300 ${(pin.length === 4 || pin.length === 6) ? "bg-white text-black hover:bg-zinc-200 shadow-[0_0_20px_rgba(255,255,255,0.2)]" : "bg-white/5 text-zinc-600 border border-white/5 cursor-not-allowed"}`}
+                    disabled={pin.length !== 4 || isVerifying} 
+                    className={`w-full py-4 rounded-2xl font-semibold text-sm tracking-wide flex justify-center items-center space-x-2 transition-all duration-300 ${pin.length === 4 ? "bg-white text-black hover:bg-zinc-200 shadow-[0_0_20px_rgba(255,255,255,0.2)]" : "bg-white/5 text-zinc-600 border border-white/5 cursor-not-allowed"}`}
                   >
                     {isVerifying ? <span>Verifying Node...</span> : <span>Continue</span>}
                   </button>
@@ -344,7 +365,7 @@ export default function Terminal01LegacyPrintPage() {
                         ))}
                       </div>
                     )}
-                    <input type="file" multiple className="hidden" onChange={handleFileChange} accept=".pdf,.docx,.png,.jpg,.jpeg,.heic" />
+                    <input type="file" multiple className="hidden" onChange={handleFileChange} accept=".pdf,.png,.jpg,.jpeg,.heic" />
                   </label>
 
                   <div className="flex gap-3 mt-6">
@@ -397,8 +418,8 @@ export default function Terminal01LegacyPrintPage() {
                     <div className="space-y-1.5">
                       <label className="text-[11px] text-zinc-400 font-semibold uppercase tracking-wider">Color Profile</label>
                       <div className="flex bg-black/40 p-1 rounded-2xl border border-white/10">
-                        <button onClick={() => setColorMode('bw')} className={`flex-1 py-2.5 rounded-xl text-xs font-medium transition-all ${colorMode === 'bw' ? 'bg-white/10 text-white shadow-sm' : 'text-zinc-400'}`}>B&W (₹2)</button>
-                        <button onClick={() => setColorMode('color')} className={`flex-1 py-2.5 rounded-xl text-xs font-medium transition-all ${colorMode === 'color' ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30' : 'text-zinc-400'}`}>Color (₹8)</button>
+                        <button onClick={() => setColorMode('bw')} className={`flex-1 py-2.5 rounded-xl text-xs font-medium transition-all ${colorMode === 'bw' ? 'bg-white/10 text-white shadow-sm' : 'text-zinc-400'}`}>B&W (₹1.50)</button>
+                        <button onClick={() => setColorMode('color')} className={`flex-1 py-2.5 rounded-xl text-xs font-medium transition-all ${colorMode === 'color' ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30' : 'text-zinc-400'}`}>Color (₹7)</button>
                       </div>
                     </div>
 
@@ -407,7 +428,7 @@ export default function Terminal01LegacyPrintPage() {
                       <div className="space-y-1.5">
                         <label className="text-[11px] text-zinc-400 font-semibold uppercase tracking-wider">Borders</label>
                         <div className="flex bg-black/40 p-1 rounded-2xl border border-white/10">
-                          <button onClick={() => setMargin('standard')} className={`flex-1 py-2.5 rounded-xl text-xs font-medium transition-all ${margin === 'standard' ? 'bg-white/10 text-white shadow-sm' : 'text-zinc-400'}`}>Standard (₹8)</button>
+                          <button onClick={() => setMargin('standard')} className={`flex-1 py-2.5 rounded-xl text-xs font-medium transition-all ${margin === 'standard' ? 'bg-white/10 text-white shadow-sm' : 'text-zinc-400'}`}>Standard (₹7)</button>
                           <button onClick={() => setMargin('none')} className={`flex-1 py-2.5 rounded-xl text-xs font-medium transition-all ${margin === 'none' ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30' : 'text-zinc-400'}`}>Borderless (₹10)</button>
                         </div>
                       </div>
