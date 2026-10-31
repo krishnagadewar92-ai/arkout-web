@@ -92,7 +92,7 @@ export default function Terminal01LegacyPrintPage() {
       return;
     }
 
-    const targetUrl = "https://api.arkout.in";
+    const targetUrl = process.env.NEXT_PUBLIC_TERMINAL_01_API_URL || "https://api.arkout.in";
     setApiBaseUrl(targetUrl);
 
     try {
@@ -365,7 +365,7 @@ export default function Terminal01LegacyPrintPage() {
                         ))}
                       </div>
                     )}
-                    <input type="file" multiple className="hidden" onChange={handleFileChange} accept=".pdf,.docx,.png,.jpg,.jpeg,.heic" />
+                    <input type="file" multiple className="hidden" onChange={handleFileChange} accept=".pdf,.png,.jpg,.jpeg,.heic" />
                   </label>
 
                   <div className="flex gap-3 mt-6">
