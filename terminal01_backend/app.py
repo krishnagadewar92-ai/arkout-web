@@ -16,6 +16,9 @@ from flask_cors import CORS
 from dotenv import load_dotenv
 from werkzeug.utils import secure_filename
 from PyPDF2 import PdfReader
+from PIL import Image
+import pillow_heif
+pillow_heif.register_heif_opener()
 
 BASE = Path(__file__).resolve().parent
 load_dotenv(BASE / ".env", override=True)
@@ -208,6 +211,15 @@ def upload_file():
                 path = UPLOAD_DIR / stored
                 item.save(path)
                 saved_paths.append(path)
+                if ext == ".heic":
+                    converted = UPLOAD_DIR / (file_id + ".jpg")
+                    with Image.open(path) as image:
+                        image.convert("RGB").save(converted, format="JPEG", quality=92)
+                    path.unlink(missing_ok=True)
+                    saved_paths.remove(path)
+                    path = converted
+                    saved_paths.append(path)
+                    stored = file_id + ".jpg"
                 pages = 1
                 if ext == ".pdf":
                     try:
