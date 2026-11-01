@@ -43,6 +43,7 @@ export default function Terminal01LegacyPrintPage() {
   const [margin, setMargin] = useState<'standard' | 'none'>('standard');
   const [isPaying, setIsPaying] = useState(false);
   const [isPreviewComplete, setIsPreviewComplete] = useState(false);
+  const [isPreviewTestPaid, setIsPreviewTestPaid] = useState(false);
 
   // Review States
   const [rating, setRating] = useState(0);
@@ -219,6 +220,11 @@ export default function Terminal01LegacyPrintPage() {
               alert(confirmation.message || "Payment received; operator review is required. Do not pay again.");
               return;
             }
+            if (confirmRes.ok && confirmation.status === "test_paid" && confirmation.result === "preview_test_paid") {
+              setIsPreviewTestPaid(true);
+              setStep("success");
+              return;
+            }
             if (!confirmRes.ok || confirmation.status !== "printed") {
               throw new Error(confirmation.error || "Payment/print confirmation is pending. Do not pay again.");
             }
@@ -285,7 +291,7 @@ export default function Terminal01LegacyPrintPage() {
     } catch (e) { console.error("Abort failed"); }
 
     setFiles([]); setUploadedFilenames([]); setUploadedFileIds([]); setSessionToken("");
-    setStep('verify'); setProgress(0); setPin(""); setIsPreviewComplete(false);
+    setStep('verify'); setProgress(0); setPin(""); setIsPreviewComplete(false); setIsPreviewTestPaid(false);
     setColorMode('bw'); setSides('single'); setMargin('standard'); 
     setBasePages(1); setCopies(1);
     setRating(0); setReviewText(""); setIsReviewSubmitted(false);
@@ -507,8 +513,8 @@ export default function Terminal01LegacyPrintPage() {
                   <div className="w-14 h-14 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl flex items-center justify-center text-emerald-400 mb-4 shadow-lg">
                     <Check size={28} />
                   </div>
-                  <h2 className="text-xl font-semibold tracking-tight mb-1">{isPreviewComplete ? "Preview Simulation Complete" : "Payment Confirmed"}</h2>
-                  <p className="text-xs text-zinc-400 mb-6 text-center">{isPreviewComplete ? "No payment was charged and no physical print was submitted." : "Hardware triggered successfully. Collecting your prints..."}</p>
+                  <h2 className="text-xl font-semibold tracking-tight mb-1">{isPreviewComplete ? "Preview Simulation Complete" : isPreviewTestPaid ? "Razorpay Test Payment Verified" : "Payment Confirmed"}</h2>
+                  <p className="text-xs text-zinc-400 mb-6 text-center">{isPreviewComplete ? "No payment was charged and no physical print was submitted." : isPreviewTestPaid ? "Razorpay Test Mode payment verified. No physical print was submitted." : "Hardware triggered successfully. Collecting your prints..."}</p>
 
                   {/* Rating Component */}
                   {!isReviewSubmitted ? (
