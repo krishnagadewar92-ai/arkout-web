@@ -169,7 +169,7 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
   const pendingAbortKey = storageKey + PENDING_ABORT_SUFFIX;
   const pendingCancelKey = storageKey + PENDING_CANCEL_SUFFIX;
   const abortRequestedRef = useRef(false);
-  const publicRazorpayKey = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || "";
+  const publicRazorpayKey = process.env.NEXT_PUBLIC_TERMINAL_02_RAZORPAY_KEY_ID || "";
 
   // Idle sessions are aborted directly. Sessions with an order use the
   // provider-reconciled cancellation endpoint; the server refuses cancellation
