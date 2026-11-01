@@ -42,6 +42,7 @@ export default function Terminal01LegacyPrintPage() {
   const [sides, setSides] = useState<'single' | 'double'>('single');
   const [margin, setMargin] = useState<'standard' | 'none'>('standard');
   const [isPaying, setIsPaying] = useState(false);
+  const [isPreviewComplete, setIsPreviewComplete] = useState(false);
 
   // Review States
   const [rating, setRating] = useState(0);
@@ -175,6 +176,33 @@ export default function Terminal01LegacyPrintPage() {
       const order = await orderRes.json();
       if (!orderRes.ok || !order.id || !order.key_id) throw new Error(order.error || "Order creation failed");
 
+      // Isolated Preview orders must never be sent to the real Razorpay checkout.
+      if (order.key_id === "preview_mock") {
+        const confirmRes = await fetch(`${apiBaseUrl}/api/confirm-payment`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${sessionToken}`,
+          },
+          body: JSON.stringify({
+            razorpay_order_id: order.id,
+            razorpay_payment_id: `preview_payment_${crypto.randomUUID()}`,
+            razorpay_signature: "preview_mock_signature",
+          }),
+        });
+        const confirmation = await confirmRes.json().catch(() => ({}));
+        if (!confirmRes.ok || confirmation.status !== "simulated" || confirmation.result !== "preview_complete") {
+          throw new Error(confirmation.error || "Preview simulation could not be completed.");
+        }
+        setIsPreviewComplete(true);
+        setStep("success");
+        setIsPaying(false);
+        return;
+      }
+
+      const isLoaded = await loadRazorpay();
+      if (!isLoaded) throw new Error("Failed to load payment gateway.");
+
       const options = {
         key: order.key_id, 
         amount: order.amount, currency: order.currency,
@@ -262,7 +290,7 @@ export default function Terminal01LegacyPrintPage() {
     } catch (e) { console.error("Abort failed"); }
 
     setFiles([]); setUploadedFilenames([]); setUploadedFileIds([]); setSessionToken("");
-    setStep('verify'); setProgress(0); setPin("");
+    setStep('verify'); setProgress(0); setPin(""); setIsPreviewComplete(false);
     setColorMode('bw'); setSides('single'); setMargin('standard'); 
     setBasePages(1); setCopies(1);
     setRating(0); setReviewText(""); setIsReviewSubmitted(false);
@@ -484,8 +512,8 @@ export default function Terminal01LegacyPrintPage() {
                   <div className="w-14 h-14 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl flex items-center justify-center text-emerald-400 mb-4 shadow-lg">
                     <Check size={28} />
                   </div>
-                  <h2 className="text-xl font-semibold tracking-tight mb-1">Payment Confirmed</h2>
-                  <p className="text-xs text-zinc-400 mb-6 text-center">Hardware triggered successfully. Collecting your prints...</p>
+                  <h2 className="text-xl font-semibold tracking-tight mb-1">{isPreviewComplete ? "Preview Simulation Complete" : "Payment Confirmed"}</h2>
+                  <p className="text-xs text-zinc-400 mb-6 text-center">{isPreviewComplete ? "No payment was charged and no physical print was submitted." : "Hardware triggered successfully. Collecting your prints..."}</p>
 
                   {/* Rating Component */}
                   {!isReviewSubmitted ? (
