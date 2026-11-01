@@ -161,11 +161,6 @@ export default function Terminal01LegacyPrintPage() {
 
   const handlePayment = async () => {
     setIsPaying(true);
-    const isLoaded = await loadRazorpay();
-    if (!isLoaded) {
-      alert("Failed to load payment gateway.");
-      setIsPaying(false); return;
-    }
 
     try {
       const orderRes = await fetch(`${apiBaseUrl}/api/create-order`, {
