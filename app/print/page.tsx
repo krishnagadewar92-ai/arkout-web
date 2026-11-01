@@ -34,9 +34,15 @@ export default function PrintRouterPage() {
     );
   }
 
-  // Preview pricing checks always use the safe, network-free Terminal 02 demo.
-  // Do not route any Preview PIN to either live terminal API.
+  // Preview keeps Terminal 02 on its network-free demo. Four-digit PINs
+  // use the isolated Terminal 01 Preview API only when its branch flag is enabled.
   if (process.env.NEXT_PUBLIC_DEPLOYMENT_STAGE === "preview") {
+    if (
+      /^\d{4}$/.test(routePin) &&
+      process.env.NEXT_PUBLIC_TERMINAL_01_PREVIEW_MODE === "true"
+    ) {
+      return <Terminal01LegacyPrintPage />;
+    }
     return <Terminal02SecurePrintPage pin={/^02\d{4}$/.test(routePin) ? routePin : "020000"} />;
   }
 
