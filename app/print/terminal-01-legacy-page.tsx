@@ -4,11 +4,11 @@
 import { useState, useMemo, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  UploadCloud, FileText, ChevronRight, Cpu, Check, 
+  UploadCloud, FileText, ChevronRight, Cpu, Check,
   Palette, Layers, Maximize, Lock, XCircle, Copy, Plus, Minus, Sparkles, Star
 } from "lucide-react";
 import Image from "next/image";
-import { useTerminalSession } from "../../hooks/useTerminalSession"; 
+
 
 type AppStep = 'verify' | 'upload' | 'processing' | 'checkout' | 'success';
 
@@ -27,11 +27,13 @@ export default function Terminal01LegacyPrintPage() {
   const [pin, setPin] = useState("");
   const [pinError, setPinError] = useState("");
   const [isVerifying, setIsVerifying] = useState(false);
-  
-  const [apiBaseUrl, setApiBaseUrl] = useState("https://api.arkout.in");
+
+  const [apiBaseUrl, setApiBaseUrl] = useState("https://secure-api.arkout.in");
+  const [sessionToken, setSessionToken] = useState("");
+  const [uploadedFileIds, setUploadedFileIds] = useState<string[]>([]);
 
   const [files, setFiles] = useState<File[]>([]);
-  const [uploadedFilenames, setUploadedFilenames] = useState<string[]>([]); 
+  const [uploadedFilenames, setUploadedFilenames] = useState<string[]>([]);
   const [progress, setProgress] = useState(0);
   const [logText, setLogText] = useState("Initializing neural engine...");
 
@@ -48,7 +50,8 @@ export default function Terminal01LegacyPrintPage() {
   const [reviewText, setReviewText] = useState("");
   const [isReviewSubmitted, setIsReviewSubmitted] = useState(false);
 
-  const { isSessionValid, errorMessage } = useTerminalSession(pin);
+  const isSessionValid = true;
+  const errorMessage = "";
 
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -65,21 +68,19 @@ export default function Terminal01LegacyPrintPage() {
   }, [colorMode]);
 
   const totalPages = basePages * copies;
-  const maxCopies = Math.floor(30 / basePages);
+  const maxCopies = Math.floor(60 / basePages);
 
   const handleIncrementCopies = () => { if (copies < maxCopies) setCopies(prev => prev + 1); };
   const handleDecrementCopies = () => { if (copies > 1) setCopies(prev => prev - 1); };
 
   const currentPrice = useMemo(() => {
-    const safePages = totalPages > 0 ? totalPages : 1; 
-    let pricePerPage = 2;
-    if (colorMode === 'color') pricePerPage = margin === 'none' ? 10 : 8;
+    const safePages = totalPages > 0 ? totalPages : 1;
+    let pricePerPage = 1.5;
+    if (colorMode === 'color') pricePerPage = margin === 'none' ? 10 : 7;
     return safePages * pricePerPage;
   }, [totalPages, colorMode, margin]);
 
-  // Terminal 01 compatibility lane only: four-digit PINs continue to use its existing API.
-  // Terminal 02 (six-digit PINs beginning with 02) is routed by app/print/page.tsx to the
-  // secure Terminal 02 lane and must never enter this legacy component.
+  // Terminal 01 only. Terminal 02 routing remains in app/print/page.tsx.
   const verifyTerminalPin = async (pinToVerify: string) => {
     setIsVerifying(true);
     setPinError("");
@@ -90,7 +91,7 @@ export default function Terminal01LegacyPrintPage() {
       return;
     }
 
-    const targetUrl = "https://api.arkout.in";
+    const targetUrl = "https://secure-api.arkout.in";
     setApiBaseUrl(targetUrl);
 
     try {
@@ -99,15 +100,19 @@ export default function Terminal01LegacyPrintPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ pin: pinToVerify }),
       });
-      if (response.ok) {
-        setStep('upload');
+      const data = await response.json();
+
+      if (response.ok && data.session_token) {
+        setSessionToken(data.session_token);
+        setStep("upload");
       } else {
-        setPinError("Invalid PIN. Check the kiosk screen.");
+        setPinError(data.error || "Invalid or expired PIN. Check the kiosk screen.");
       }
     } catch (err) {
       setPinError("Cannot connect to Terminal 01.");
+    } finally {
+      setIsVerifying(false);
     }
-    setIsVerifying(false);
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -125,8 +130,12 @@ export default function Terminal01LegacyPrintPage() {
 
     try {
       setTimeout(() => { setProgress(25); setLogText("Analyzing document structure & pages..."); }, 400);
-      
-      const response = await fetch(`${apiBaseUrl}/upload`, { method: "POST", body: formData });
+
+      const response = await fetch(`${apiBaseUrl}/upload`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${sessionToken}` },
+        body: formData,
+      });
 
       if (response.ok) {
         const data = await response.json();
@@ -134,13 +143,14 @@ export default function Terminal01LegacyPrintPage() {
         setBasePages(detectedPages);
 
         if (data.files && Array.isArray(data.files)) {
-            setUploadedFilenames(data.files.map((f: any) => f.filename));
+          setUploadedFilenames(data.files.map((f: any) => f.filename));
+          setUploadedFileIds(data.files.map((f: any) => f.file_id).filter(Boolean));
         }
 
         setCopies(1);
         setProgress(60);
         setLogText(`Analysis complete. Found ${detectedPages} pages.`);
-        
+
         setTimeout(() => { setProgress(85); setLogText("Preparing print configuration options..."); }, 1200);
         setTimeout(() => { setProgress(100); setLogText("Ready."); }, 2200);
       } else {
@@ -152,100 +162,139 @@ export default function Terminal01LegacyPrintPage() {
   };
 
   const handlePayment = async () => {
+    if (!sessionToken || uploadedFileIds.length === 0) {
+      alert("Your session or uploaded documents are missing. Please upload again.");
+      return;
+    }
+
     setIsPaying(true);
     const isLoaded = await loadRazorpay();
     if (!isLoaded) {
       alert("Failed to load payment gateway.");
-      setIsPaying(false); return;
+      setIsPaying(false);
+      return;
     }
+
+    const authHeaders = {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${sessionToken}`,
+    };
+
+    const updateKioskState = (status: "processing" | "payment") =>
+      fetch(`${apiBaseUrl}/api/set-state`, {
+        method: "POST",
+        headers: authHeaders,
+        body: JSON.stringify({ status }),
+      }).catch(() => {});
 
     try {
       const orderRes = await fetch(`${apiBaseUrl}/api/create-order`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ amount: currentPrice }),
+        method: "POST",
+        headers: authHeaders,
+        body: JSON.stringify({
+          file_ids: uploadedFileIds,
+          copies,
+          config: { colorMode, margin, sides },
+        }),
       });
+
       const order = await orderRes.json();
-      if (!order.id) throw new Error("Order creation failed");
+      if (!orderRes.ok || !order.id || !order.key_id) {
+        throw new Error(order.error || "Order creation failed");
+      }
 
       const options = {
-        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID, 
-        amount: order.amount, currency: order.currency,
-        name: "Arkout Print Hub", description: `Secure Print - ${totalPages} Pages`,
+        key: order.key_id,
+        amount: order.amount,
+        currency: order.currency,
+        name: "Arkout Print Hub",
+        description: `Secure Print - ${totalPages} Pages`,
         order_id: order.id,
-        handler: async function (response: any) {
-          setStep('success'); setIsPaying(false);
+        handler: async (paymentResponse: any) => {
           try {
-            for (const serverFilename of uploadedFilenames) {
-                await fetch(`${apiBaseUrl}/api/trigger-print`, {
-                  method: "POST", headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ filename: serverFilename, config: { colorMode, sides, margin, copies } }), 
-                });
-            }
-          } catch (err) { console.error("Hardware trigger failed", err); }
-        },
-        prefill: { name: "Arkout User", contact: "9999999999" }, theme: { color: "#000000" },
-        
-        // Handles the user manually closing the Razorpay window
-        modal: {
-            ondismiss: function() {
-                setIsPaying(false); 
-                fetch(`${apiBaseUrl}/api/set-state`, {
-                    method: "POST", headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ status: "processing" })
-                }).catch(() => {});
-            }
-        }
-      };
-      const rzp = new (window as any).Razorpay(options);
-      
-      // Tell the Kiosk to show "Confirming Payment" right before the paywall opens
-      fetch(`${apiBaseUrl}/api/set-state`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "payment" })
-      }).catch(() => {});
+            const confirmRes = await fetch(`${apiBaseUrl}/api/confirm-payment`, {
+              method: "POST",
+              headers: authHeaders,
+              body: JSON.stringify({
+                razorpay_order_id: paymentResponse.razorpay_order_id,
+                razorpay_payment_id: paymentResponse.razorpay_payment_id,
+                razorpay_signature: paymentResponse.razorpay_signature,
+              }),
+            });
 
-      rzp.on("payment.failed", function (response: any) {
-        alert("Payment Failed: " + response.error.description);
+            const confirmation = await confirmRes.json();
+            if (!confirmRes.ok || confirmation.status !== "printed") {
+              throw new Error(confirmation.error || confirmation.message || "Payment confirmation or printing failed.");
+            }
+
+            setStep("success");
+          } catch (err: any) {
+            alert(err.message || "Payment was received but confirmation needs attention. Contact the kiosk administrator.");
+          } finally {
+            setIsPaying(false);
+          }
+        },
+        prefill: { name: "Arkout User" },
+        theme: { color: "#000000" },
+        modal: {
+          ondismiss: () => {
+            setIsPaying(false);
+            void updateKioskState("processing");
+          },
+        },
+      };
+
+      const rzp = new (window as any).Razorpay(options);
+
+      rzp.on("payment.failed", (response: any) => {
+        alert("Payment failed: " + (response.error?.description || "Please try again."));
         setIsPaying(false);
-        fetch(`${apiBaseUrl}/api/set-state`, {
-            method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ status: "processing" })
-        }).catch(() => {});
+        void updateKioskState("processing");
       });
 
+      await updateKioskState("payment");
       rzp.open();
-    } catch (err) {
-      alert("Gateway error."); setIsPaying(false);
+    } catch (err: any) {
+      alert(err.message || "Gateway error. Please try again.");
+      setIsPaying(false);
+      void updateKioskState("processing");
     }
   };
 
-  const handleReviewSubmit = async () => {
+  // Review UI is retained. The current Terminal 01 backend has no review endpoint.
+  const handleReviewSubmit = () => {
     setIsReviewSubmitted(true);
-    try {
-      await fetch(`${apiBaseUrl}/api/submit-review`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          rating: rating, 
-          review_text: reviewText 
-        })
-      });
-    } catch (err) { 
-      console.error("Failed to submit review", err); 
-    }
   };
 
   const resetApp = async () => {
-    try {
-      await fetch(`${apiBaseUrl}/api/abort`, { method: "POST", body: JSON.stringify({ session_id: pin }) });
-    } catch (e) { console.error("Abort failed"); }
+    if (sessionToken) {
+      try {
+        await fetch(`${apiBaseUrl}/api/session/abort`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${sessionToken}` },
+        });
+      } catch (e) {
+        console.error("Session cleanup failed");
+      }
+    }
 
-    setFiles([]); setUploadedFilenames([]);
-    setStep('verify'); setProgress(0); setPin("");
-    setColorMode('bw'); setSides('single'); setMargin('standard'); 
-    setBasePages(1); setCopies(1);
-    setRating(0); setReviewText(""); setIsReviewSubmitted(false);
-    setApiBaseUrl("https://api.arkout.in");
+    setFiles([]);
+    setUploadedFilenames([]);
+    setUploadedFileIds([]);
+    setSessionToken("");
+    setStep("verify");
+    setProgress(0);
+    setPin("");
+    setPinError("");
+    setColorMode("bw");
+    setSides("single");
+    setMargin("standard");
+    setBasePages(1);
+    setCopies(1);
+    setRating(0);
+    setReviewText("");
+    setIsReviewSubmitted(false);
+    setApiBaseUrl("https://secure-api.arkout.in");
   };
 
   if (!isSessionValid) {
@@ -260,7 +309,7 @@ export default function Terminal01LegacyPrintPage() {
 
   return (
     <main className="min-h-screen w-full relative overflow-hidden font-sans text-white flex flex-col items-center justify-center p-4 md:p-6 bg-zinc-950">
-      
+
       {/* BACKGROUND ADVERTISEMENT LAYER */}
       <div className={`absolute inset-0 transition-all duration-700 ease-in-out z-0 flex items-center justify-center overflow-hidden pointer-events-none ${step !== 'verify' ? 'blur-3xl scale-105 opacity-40' : 'blur-none opacity-100'}`}>
         <div className="absolute inset-0 bg-gradient-to-tr from-cyan-900/20 via-black to-purple-900/20 z-10"></div>
@@ -276,7 +325,7 @@ export default function Terminal01LegacyPrintPage() {
       </div>
 
       <div className="z-10 w-full max-w-2xl flex flex-col items-center">
-        
+
         <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="text-center mb-6">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/[0.08] backdrop-blur-xl border border-white/10 text-xs font-medium text-zinc-300 mb-3 shadow-sm">
             <Sparkles size={12} className="text-cyan-400" /> Arkout Secure Kiosk Node
@@ -285,7 +334,7 @@ export default function Terminal01LegacyPrintPage() {
 
         <div className="w-full relative">
           <div className="absolute -inset-[1px] rounded-[36px] bg-gradient-to-b from-white/20 to-white/5 opacity-50 blur-[2px]"></div>
-          
+
           <div className="relative bg-zinc-900/75 backdrop-blur-2xl border border-white/15 rounded-[34px] p-6 md:p-10 shadow-[0_20px_50px_rgba(0,0,0,0.6)] overflow-hidden min-h-[420px] flex flex-col justify-between">
 
             <AnimatePresence mode="wait">
@@ -299,19 +348,19 @@ export default function Terminal01LegacyPrintPage() {
                   <h3 className="text-2xl font-semibold tracking-tight text-white mb-2">Terminal Authentication</h3>
                   <p className="text-sm text-zinc-400 mb-6 leading-relaxed">Enter the 4 or 6-digit PIN visible on the kiosk screen to establish a secure session.</p>
 
-                  <input 
-                    type="text" 
-                    maxLength={4} 
-                    placeholder="••••" 
-                    value={pin} 
-                    onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))} 
+                  <input
+                    type="text"
+                    maxLength={4}
+                    placeholder="••••"
+                    value={pin}
+                    onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
                     className="w-full bg-black/40 border border-white/15 rounded-2xl py-4 text-center text-3xl font-mono text-white tracking-[0.3em] focus:outline-none focus:border-cyan-400/80 focus:ring-4 focus:ring-cyan-500/20 transition-all mb-4 shadow-inner"
                   />
                   {pinError && <p className="text-red-400 text-xs font-medium mb-4">{pinError}</p>}
 
-                  <button 
-                    onClick={() => verifyTerminalPin(pin)} 
-                    disabled={(pin.length !== 4 && pin.length !== 6) || isVerifying} 
+                  <button
+                    onClick={() => verifyTerminalPin(pin)}
+                    disabled={(pin.length !== 4 && pin.length !== 6) || isVerifying}
                     className={`w-full py-4 rounded-2xl font-semibold text-sm tracking-wide flex justify-center items-center space-x-2 transition-all duration-300 ${(pin.length === 4 || pin.length === 6) ? "bg-white text-black hover:bg-zinc-200 shadow-[0_0_20px_rgba(255,255,255,0.2)]" : "bg-white/5 text-zinc-600 border border-white/5 cursor-not-allowed"}`}
                   >
                     {isVerifying ? <span>Verifying Node...</span> : <span>Continue</span>}
@@ -372,7 +421,7 @@ export default function Terminal01LegacyPrintPage() {
                     </div>
                   </div>
                   <p className="text-xs font-mono text-zinc-400 mb-8">{logText}</p>
-                  
+
                   {progress === 100 && basePages <= 30 && (
                     <button onClick={() => setStep('checkout')} className="w-full max-w-xs py-4 rounded-2xl font-semibold text-sm bg-white text-black hover:bg-zinc-200 transition-all shadow-lg flex items-center justify-center gap-2">
                       Configure Print <ChevronRight size={16} />
@@ -407,7 +456,7 @@ export default function Terminal01LegacyPrintPage() {
                       <div className="space-y-1.5">
                         <label className="text-[11px] text-zinc-400 font-semibold uppercase tracking-wider">Borders</label>
                         <div className="flex bg-black/40 p-1 rounded-2xl border border-white/10">
-                          <button onClick={() => setMargin('standard')} className={`flex-1 py-2.5 rounded-xl text-xs font-medium transition-all ${margin === 'standard' ? 'bg-white/10 text-white shadow-sm' : 'text-zinc-400'}`}>Standard (₹8)</button>
+                          <button onClick={() => setMargin('standard')} className={`flex-1 py-2.5 rounded-xl text-xs font-medium transition-all ${margin === 'standard' ? 'bg-white/10 text-white shadow-sm' : 'text-zinc-400'}`}>Standard (₹7)</button>
                           <button onClick={() => setMargin('none')} className={`flex-1 py-2.5 rounded-xl text-xs font-medium transition-all ${margin === 'none' ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30' : 'text-zinc-400'}`}>Borderless (₹10)</button>
                         </div>
                       </div>
@@ -448,7 +497,7 @@ export default function Terminal01LegacyPrintPage() {
                     </div>
 
                     <div className="space-y-2 pt-4">
-                      <button onClick={handlePayment} disabled={isPaying || totalPages > 30} className="w-full py-4 rounded-2xl font-semibold text-sm bg-white text-black hover:bg-zinc-200 transition-all shadow-lg flex justify-center items-center gap-2">
+                      <button onClick={handlePayment} disabled={isPaying || totalPages > 60 || uploadedFileIds.length === 0} className="w-full py-4 rounded-2xl font-semibold text-sm bg-white text-black hover:bg-zinc-200 transition-all shadow-lg flex justify-center items-center gap-2">
                         {isPaying ? <span>Authorizing...</span> : <><span>Pay via UPI / Card</span> <ChevronRight size={16} /></>}
                       </button>
                       <button onClick={resetApp} className="w-full py-2 text-zinc-500 text-xs hover:text-red-400 transition-colors">Cancel Session</button>
@@ -472,16 +521,16 @@ export default function Terminal01LegacyPrintPage() {
                       <h4 className="text-sm font-medium mb-3 text-zinc-200">Rate your experience</h4>
                       <div className="flex gap-3 mb-2">
                         {[1, 2, 3, 4, 5].map((star) => (
-                          <button 
-                            key={star} 
+                          <button
+                            key={star}
                             onMouseEnter={() => setHoveredStar(star)}
                             onMouseLeave={() => setHoveredStar(0)}
                             onClick={() => setRating(star)}
                             className="focus:outline-none transition-transform hover:scale-125"
                           >
-                            <Star 
-                              size={28} 
-                              className={`${(hoveredStar || rating) >= star ? 'text-amber-400 fill-amber-400 drop-shadow-[0_0_10px_rgba(251,191,36,0.5)]' : 'text-zinc-700'} transition-all duration-300`} 
+                            <Star
+                              size={28}
+                              className={`${(hoveredStar || rating) >= star ? 'text-amber-400 fill-amber-400 drop-shadow-[0_0_10px_rgba(251,191,36,0.5)]' : 'text-zinc-700'} transition-all duration-300`}
                             />
                           </button>
                         ))}
@@ -490,13 +539,13 @@ export default function Terminal01LegacyPrintPage() {
                       {/* Expandable Review Text Area */}
                       <AnimatePresence>
                         {rating > 0 && (
-                          <motion.div 
-                            initial={{ opacity: 0, height: 0, marginTop: 0 }} 
-                            animate={{ opacity: 1, height: "auto", marginTop: 16 }} 
+                          <motion.div
+                            initial={{ opacity: 0, height: 0, marginTop: 0 }}
+                            animate={{ opacity: 1, height: "auto", marginTop: 16 }}
                             exit={{ opacity: 0, height: 0 }}
                             className="w-full flex flex-col gap-3 overflow-hidden"
                           >
-                            <textarea 
+                            <textarea
                               placeholder="Tell us what you loved or what we can improve..."
                               value={reviewText}
                               onChange={(e) => setReviewText(e.target.value)}
