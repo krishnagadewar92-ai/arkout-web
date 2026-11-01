@@ -238,9 +238,17 @@ export default function Terminal01LegacyPrintPage() {
         // Handles the user manually closing the Razorpay window
         modal: {
             ondismiss: function() {
-                setIsPaying(false); 
+                setIsPaying(false);
+                fetch(`${apiBaseUrl}/api/cancel-order`, {
+                    method: "POST",
+                    headers: {
+                      "Content-Type": "application/json",
+                      Authorization: `Bearer ${sessionToken}`,
+                    },
+                    body: JSON.stringify({ order_id: order.id }),
+                  }).catch(() => {});
                 fetch(`${apiBaseUrl}/api/set-state`, {
-                    method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${sessionToken}` }, 
+                    method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${sessionToken}` },
                     body: JSON.stringify({ status: "processing" })
                 }).catch(() => {});
             }
