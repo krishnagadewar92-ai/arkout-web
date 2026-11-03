@@ -34,13 +34,15 @@ export default function PrintRouterPage() {
     );
   }
 
-  // In Preview, keep Terminal 02 isolated in its network-free pricing demo,
-  // but allow four-digit Terminal 01 PINs to reach its secure Pi-backed flow.
+  // In Preview, only route an explicitly supplied, valid terminal PIN.
+  // A plain visit to /print must show the PIN-entry screen; never invent a demo PIN.
   if (process.env.NEXT_PUBLIC_DEPLOYMENT_STAGE === "preview") {
     if (/^\d{4}$/.test(routePin)) {
       return <Terminal01LegacyPrintPage />;
     }
-    return <Terminal02SecurePrintPage pin={/^02\d{4}$/.test(routePin) ? routePin : "020000"} />;
+    if (/^02\d{4}$/.test(routePin)) {
+      return <Terminal02SecurePrintPage pin={routePin} />;
+    }
   }
 
   // Preserve Terminal 01's four-digit route and its existing api.arkout.in contract.
