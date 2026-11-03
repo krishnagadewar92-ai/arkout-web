@@ -1,7 +1,7 @@
 "use client";
 
 import { ChangeEvent, FormEvent, useCallback, useEffect, useState } from "react";
-import { upload as uploadBlob } from "@vercel/blob/client";
+
 import Image from "next/image";
 import { ArrowUpRight, Film, Image as ImageIcon, LockKeyhole, LogOut, Monitor, RefreshCw, ShieldCheck, Sparkles, Trash2, Upload } from "lucide-react";
 
@@ -40,13 +40,6 @@ function isVideoAsset(ad: AdAsset) {
   return ad.contentType.startsWith("video/") || /\.(mp4|m4v|mov|webm)$/i.test(ad.pathname);
 }
 
-function makeUploadId() {
-  if (typeof crypto.randomUUID === "function") return crypto.randomUUID();
-  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (char) => {
-    const random = Math.random() * 16 | 0;
-    return (char === "x" ? random : (random & 0x3 | 0x8)).toString(16);
-  });
-}
 
 async function prepareMediaFile(source: File): Promise<File> {
   if (!/\.(heic|heif)$/i.test(source.name)) return source;
@@ -155,7 +148,7 @@ export default function AdvertisementPortalPage() {
     let completed = 0;
     try {
       for (const original of files) {
-        let mediaFile = await prepareMediaFile(original);
+        const mediaFile = await prepareMediaFile(original);
         const media = mediaTypeForFile(mediaFile);
         if (!media) {
           throw new Error("Unsupported format: " + original.name + ". Use JPG, PNG, WebP, GIF, AVIF, HEIC/HEIF, MP4, M4V, MOV, or WebM.");
@@ -163,15 +156,38 @@ export default function AdvertisementPortalPage() {
         if (mediaFile.size > MAX_MEDIA_SIZE) {
           throw new Error(original.name + " is larger than the 50 MB limit.");
         }
-        // Keep the storage key random and extension-based; the API independently
-        // validates both the user's session and the allowed extension/content type.
-        const pathname = "arkout-ads/pending/" + Date.now() + "-" + makeUploadId() + "." + media.extension;
-        await uploadBlob(pathname, mediaFile, {
-          access: "public",
-          handleUploadUrl: "/api/adv/ads",
-          contentType: media.contentType,
-          multipart: mediaFile.size > 5 * 1024 * 1024,
+        // Get a short-lived, single-use Pi upload ticket through our authenticated server route.
+        const ticketResponse = await fetch("/api/adv/ads", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "create-upload-ticket",
+            maxBytes: mediaFile.size,
+          }),
         });
+        const ticketData = await ticketResponse.json();
+        if (
+          !ticketResponse.ok ||
+          typeof ticketData.ticket !== "string" ||
+          typeof ticketData.uploadUrl !== "string"
+        ) {
+          throw new Error(ticketData.error || "Could not prepare Pi upload.");
+        }
+
+        const formData = new FormData();
+        formData.append("file", mediaFile, mediaFile.name);
+        formData.append("title", original.name.replace(/\\.[^.]+$/, "").slice(0, 80));
+
+        // The permanent Pi token never enters the browser; only the expiring ticket does.
+        const uploadResponse = await fetch(ticketData.uploadUrl, {
+          method: "POST",
+          headers: { Authorization: "Bearer " + ticketData.ticket },
+          body: formData,
+        });
+        const uploadResult = await uploadResponse.json();
+        if (!uploadResponse.ok) {
+          throw new Error(uploadResult.error || "Pi upload failed.");
+        }
         completed += 1;
       }
       setFiles([]);
@@ -285,7 +301,7 @@ export default function AdvertisementPortalPage() {
                 <h2 className="mt-2 text-2xl font-medium tracking-[-0.045em] text-white">Studio setup required</h2>
                 <p className="mt-3 text-sm leading-7 text-slate-400">The portal is securely unavailable until these server-side environment variables are added in Vercel. Never place their values in client code or Git.</p>
                 <div className="mt-6 space-y-2">
-                  {["ADV_PORTAL_USERNAME","ADV_PORTAL_PASSWORD","ADV_SESSION_SECRET (32+ characters)","BLOB_READ_WRITE_TOKEN"].map((name) => <div key={name} className="flex items-center gap-3 rounded-xl border border-white/[0.07] bg-black/20 px-3 py-3 font-mono text-[10px] text-slate-300 sm:text-xs"><span className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-200/70" />{name}</div>)}
+                  {["ADV_PORTAL_USERNAME","ADV_PORTAL_PASSWORD","ADV_SESSION_SECRET (32+ characters)","ARKOUT_ADS_API_TOKEN","ARKOUT_ADS_API_BASE_URL (optional)"].map((name) => <div key={name} className="flex items-center gap-3 rounded-xl border border-white/[0.07] bg-black/20 px-3 py-3 font-mono text-[10px] text-slate-300 sm:text-xs"><span className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-200/70" />{name}</div>)}
                 </div>
                 <p className="mt-5 text-[11px] leading-5 text-slate-500">Once configured, this page will switch to the authenticated campaign workspace.</p>
               </div>
