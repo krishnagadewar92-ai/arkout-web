@@ -422,14 +422,14 @@ export default function Terminal01LegacyPrintPage() {
                   </div>
                   <p className="text-xs font-mono text-zinc-400 mb-8">{logText}</p>
 
-                  {progress === 100 && basePages <= 30 && (
+                  {progress === 100 && basePages <= 60 && (
                     <button onClick={() => setStep('checkout')} className="w-full max-w-xs py-4 rounded-2xl font-semibold text-sm bg-white text-black hover:bg-zinc-200 transition-all shadow-lg flex items-center justify-center gap-2">
                       Configure Print <ChevronRight size={16} />
                     </button>
                   )}
-                  {progress === 100 && basePages > 30 && (
+                  {progress === 100 && basePages > 60 && (
                     <div className="text-center">
-                      <p className="text-red-400 text-xs mb-4 font-medium">Exceeds 30-page limit ({basePages} pages).</p>
+                      <p className="text-red-400 text-xs mb-4 font-medium">Exceeds 60-page limit ({basePages} pages).</p>
                       <button onClick={resetApp} className="px-6 py-3 rounded-xl bg-white/10 text-white text-xs font-medium">Restart</button>
                     </div>
                   )}
@@ -446,8 +446,8 @@ export default function Terminal01LegacyPrintPage() {
                     <div className="space-y-1.5">
                       <label className="text-[11px] text-zinc-400 font-semibold uppercase tracking-wider">Color Profile</label>
                       <div className="flex bg-black/40 p-1 rounded-2xl border border-white/10">
-                        <button onClick={() => setColorMode('bw')} className={`flex-1 py-2.5 rounded-xl text-xs font-medium transition-all ${colorMode === 'bw' ? 'bg-white/10 text-white shadow-sm' : 'text-zinc-400'}`}>B&W (₹2)</button>
-                        <button onClick={() => setColorMode('color')} className={`flex-1 py-2.5 rounded-xl text-xs font-medium transition-all ${colorMode === 'color' ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30' : 'text-zinc-400'}`}>Color (₹8)</button>
+                        <button onClick={() => setColorMode('bw')} className={`flex-1 py-2.5 rounded-xl text-xs font-medium transition-all ${colorMode === 'bw' ? 'bg-white/10 text-white shadow-sm' : 'text-zinc-400'}`}>B&W (₹1.50)</button>
+                        <button onClick={() => setColorMode('color')} className={`flex-1 py-2.5 rounded-xl text-xs font-medium transition-all ${colorMode === 'color' ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30' : 'text-zinc-400'}`}>Color (₹7+)</button>
                       </div>
                     </div>
 
