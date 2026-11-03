@@ -34,6 +34,17 @@ export default function PrintRouterPage() {
     );
   }
 
+  // In Preview, only route an explicitly supplied, valid terminal PIN.
+  // A plain visit to /print must show the PIN-entry screen; never invent a demo PIN.
+  if (process.env.NEXT_PUBLIC_DEPLOYMENT_STAGE === "preview") {
+    if (/^\d{4}$/.test(routePin)) {
+      return <Terminal01LegacyPrintPage />;
+    }
+    if (/^02\d{4}$/.test(routePin)) {
+      return <Terminal02SecurePrintPage pin={routePin} />;
+    }
+  }
+
   // Preserve Terminal 01's four-digit route and its existing api.arkout.in contract.
   if (/^\d{4}$/.test(routePin)) {
     return <Terminal01LegacyPrintPage />;
