@@ -249,12 +249,12 @@ export default function AdvertisementPortalPage() {
       <div className="pointer-events-none fixed inset-x-0 top-0 z-40 h-px bg-gradient-to-r from-transparent via-[#9cb8ff]/70 to-transparent" />
       <div className="relative z-10 mx-auto w-full max-w-[1480px] px-4 pb-10 sm:px-6 lg:px-10">
         <header className="flex min-h-[84px] items-center justify-between gap-4 border-b border-white/[0.09]">
-          <a href="/" className="group flex items-center gap-3" aria-label="Arkout home">
+          <a href="/" className="group flex items-center gap-3" aria-label="Campus Print home">
             <span className="relative grid h-11 w-11 place-items-center overflow-hidden rounded-full border border-white/15 bg-white shadow-[0_0_35px_rgba(113,149,231,.15)]">
-              <Image src="/favicon.ico" alt="Arkout logo" fill sizes="44px" unoptimized className="object-cover" />
+              <Image src="/favicon.ico" alt="Print system mark" fill sizes="44px" unoptimized className="object-cover" />
             </span>
             <span>
-              <span className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.24em] text-white">Arkout <span className="text-[#9eb8ff]">/</span> Studio</span>
+              <span className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.24em] text-white">Campus Print <span className="text-[#9eb8ff]">/</span> Studio</span>
               <span className="mt-1 block text-[11px] text-slate-500">Advertisement operations</span>
             </span>
           </a>
@@ -272,7 +272,7 @@ export default function AdvertisementPortalPage() {
             <div>
               <p className="mb-6 flex items-center gap-3 font-mono text-[9px] font-semibold tracking-[0.2em] text-[#a8bdff]"><span className="h-px w-8 bg-[#a8bdff]" />CREATIVE OPERATIONS / SETUP</p>
               <h1 className="max-w-[740px] text-[clamp(48px,7.8vw,94px)] font-medium leading-[0.9] tracking-[-0.085em] text-white">Make every<br />screen a <span className="font-normal text-[#9ca6bb]">canvas.</span></h1>
-              <p className="mt-7 max-w-[515px] text-sm leading-7 text-slate-400 sm:text-base">A private workspace for the images and films that appear on Arkout kiosk screens. Access stays closed until the portal credentials and media storage are configured.</p>
+              <p className="mt-7 max-w-[515px] text-sm leading-7 text-slate-400 sm:text-base">A private workspace for the images and films displayed on kiosk screens. Access stays closed until the portal credentials and media storage are configured.</p>
               <div className="mt-9 grid max-w-[570px] gap-3 sm:grid-cols-3">
                 {[["01","Private access"],["02","Media validation"],["03","Kiosk playlist"]].map(([n,label]) => <div key={n} className="border-t border-white/15 pt-3"><span className="font-mono text-[9px] text-[#8fa8ea]">{n}</span><p className="mt-2 text-xs text-slate-300">{label}</p></div>)}
               </div>
@@ -294,7 +294,7 @@ export default function AdvertisementPortalPage() {
         ) : !authenticated ? (
           <section className="grid min-h-[calc(100svh-165px)] items-center gap-10 py-12 lg:grid-cols-[1.05fr_.95fr] lg:gap-16 lg:py-16">
             <div>
-              <p className="mb-6 flex items-center gap-3 font-mono text-[9px] font-semibold tracking-[0.2em] text-[#a8bdff]"><span className="h-px w-8 bg-[#a8bdff]" />ARKOUT CREATIVE STUDIO / 01</p>
+              <p className="mb-6 flex items-center gap-3 font-mono text-[9px] font-semibold tracking-[0.2em] text-[#a8bdff]"><span className="h-px w-8 bg-[#a8bdff]" />CAMPUS PRINT STUDIO / 01</p>
               <h1 className="max-w-[750px] text-[clamp(48px,7.8vw,96px)] font-medium leading-[0.9] tracking-[-0.085em] text-white">Campaigns<br />in <span className="font-normal text-[#9ca6bb]">motion.</span></h1>
               <p className="mt-7 max-w-[490px] text-sm leading-7 text-slate-400 sm:text-base">A considered home for the visuals on your kiosk screens. Upload campaign artwork, manage the media library, and keep every asset organized in one private workspace.</p>
               <div className="mt-9 flex flex-wrap gap-x-6 gap-y-3 text-[11px] text-slate-400">
@@ -384,7 +384,7 @@ export default function AdvertisementPortalPage() {
                   <div className="absolute inset-x-5 bottom-0 top-8 rounded-[40px] bg-[#7897ea]/[0.12] blur-2xl" />
                   <div className="relative aspect-[9/16] overflow-hidden rounded-[24px] border border-white/15 bg-[#07090d] p-2 shadow-[0_25px_70px_rgba(0,0,0,.55)]">
                     <div className="relative flex h-full flex-col overflow-hidden rounded-[17px] border border-white/[0.07] bg-[radial-gradient(ellipse_at_55%_38%,rgba(63,100,179,.3),transparent_56%),linear-gradient(145deg,#0c111e,#050609)] p-4">
-                      <div className="flex items-center justify-between font-mono text-[6px] tracking-[0.15em] text-slate-500"><span>ARKOUT / MEDIA</span><span className="flex gap-1"><i className="h-1 w-1 rounded-full bg-white/20" /><i className="h-1 w-1 rounded-full bg-white/20" /><i className="h-1 w-1 rounded-full bg-[#adc1ff]" /></span></div>
+                      <div className="flex items-center justify-between font-mono text-[6px] tracking-[0.15em] text-slate-500"><span>CAMPUS PRINT / MEDIA</span><span className="flex gap-1"><i className="h-1 w-1 rounded-full bg-white/20" /><i className="h-1 w-1 rounded-full bg-white/20" /><i className="h-1 w-1 rounded-full bg-[#adc1ff]" /></span></div>
                       <div className="my-auto">
                         <div className="relative mx-auto h-20 w-20 rounded-full border border-[#9eb8ff]/25 bg-[#9eb8ff]/[0.04] shadow-[0_0_35px_rgba(116,148,226,.12)]"><div className="absolute inset-3 rounded-full border border-white/10" /><div className="absolute inset-0 grid place-items-center text-[#bdcdff]"><Sparkles size={24} /></div></div>
                         <p className="mt-5 text-center text-[10px] font-medium tracking-[0.08em] text-white">Your campaign here</p>
@@ -439,7 +439,7 @@ export default function AdvertisementPortalPage() {
 
         {(message || error) && <div aria-live="polite" className={"mt-7 rounded-2xl border p-4 text-sm shadow-xl backdrop-blur-xl " + (error ? "border-red-300/25 bg-red-300/[0.07] text-red-100" : "border-emerald-300/25 bg-emerald-300/[0.07] text-emerald-100")}>{error || message}</div>}
         <footer className="mt-14 flex flex-wrap items-center justify-between gap-3 border-t border-white/[0.08] pt-5 text-[10px] text-slate-600">
-          <span>ARKOUT / CREATIVE OPERATIONS</span>
+          <span>CAMPUS PRINT / CREATIVE OPERATIONS</span>
           <span>Protected workspace · Customer and revenue data remain separate</span>
         </footer>
       </div>
