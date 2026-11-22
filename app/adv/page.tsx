@@ -251,7 +251,7 @@ export default function AdvertisementPortalPage() {
         <header className="flex min-h-[84px] items-center justify-between gap-4 border-b border-white/[0.09]">
           <a href="/" className="group flex items-center gap-3" aria-label="Campus Print home">
             <span className="relative grid h-11 w-11 place-items-center overflow-hidden rounded-full border border-white/15 bg-white shadow-[0_0_35px_rgba(113,149,231,.15)]">
-              <Image src="/favicon.ico" alt="Print system mark" fill sizes="44px" unoptimized className="object-cover" />
+              <Image src="/print-mark.svg" alt="Print system mark" fill sizes="44px" unoptimized className="object-cover" />
             </span>
             <span>
               <span className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.24em] text-white">Campus Print <span className="text-[#9eb8ff]">/</span> Studio</span>
