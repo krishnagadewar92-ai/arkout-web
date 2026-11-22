@@ -386,7 +386,7 @@ export default function ArkoutAdminPage() {
         <div className="admin-horizon-grid" /><div className="admin-scene-vignette" />
       </div>
       <header className="admin-topbar">
-        <Link href="/" className="admin-brand"><Image src="/favicon.ico" alt="Arkout logo" width={36} height={36} unoptimized /><span>arkout <small>CONTROL</small></span></Link>
+        <Link href="/" className="admin-brand"><Image src="/print-mark.svg" alt="Print system mark" width={36} height={36} unoptimized /><span>PRINT <small>CONTROL</small></span></Link>
         <div className="admin-topbar-right">
           <span className="admin-environment"><span className="admin-status-dot" /> Terminal 02 · Operations</span>
           {auth?.authenticated && <button className="admin-quiet-button" onClick={() => void logout()} disabled={busy}><LogOut size={15} /> Sign out</button>}
@@ -580,7 +580,7 @@ export default function ArkoutAdminPage() {
                 </section>
 
                 <section className="admin-glass-panel">
-                  <div className="admin-card-heading"><div><p className="admin-kicker">CONNECTED PORTALS</p><h2>Arkout services</h2></div><Wifi size={21} /></div>
+                  <div className="admin-card-heading"><div><p className="admin-kicker">CONNECTED PORTALS</p><h2>Connected services</h2></div><Wifi size={21} /></div>
                   <div className="admin-portal-links">
                     <Link href="/print"><span><Printer size={17} /> Print interface</span><ChevronRight size={16} /></Link>
                     <Link href="/print/preview"><span><FileText size={17} /> Safe print demo</span><ChevronRight size={16} /></Link>
@@ -595,7 +595,7 @@ export default function ArkoutAdminPage() {
       )}
 
       {(error || notice) && <div role="status" className={"admin-toast " + (error ? "is-error" : "is-notice")}>{error ? <AlertTriangle size={16} /> : <CheckCircle2 size={16} />}{error || notice}</div>}
-      <footer className="admin-footer"><span>© {new Date().getFullYear()} Arkout Techworks Pvt. Ltd.</span><span><ShieldCheck size={13} /> Restricted operations · Audit-friendly controls</span></footer>
+      <footer className="admin-footer"><span>© {new Date().getFullYear()} Print operations</span><span><ShieldCheck size={13} /> Restricted operations · Audit-friendly controls</span></footer>
     </main>
   );
 }
