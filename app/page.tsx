@@ -78,7 +78,7 @@ export default function CampusPrintLandingPage() {
           <div className="mx-auto flex min-h-[78px] w-[calc(100%-36px)] max-w-[1380px] items-center justify-between gap-4 md:w-[calc(100%-64px)]">
             <Link href="/" className="inline-flex items-center gap-2.5 text-[23px] font-semibold tracking-[-.075em] text-white" aria-label="Campus Print home">
               <Image src="/favicon.ico" alt="Campus Print logo" width={35} height={35} unoptimized className="rounded-full drop-shadow-lg" />
-              <span>arkout<span className="text-[#a8bbff]">.</span></span>
+              <span>campus print<span className="text-[#a8bbff]">.</span></span>
             </Link>
             <nav className={(menuOpen ? "flex" : "hidden") + " absolute left-0 right-0 top-full flex-col gap-0 border-b border-white/15 bg-[#090a0d]/95 px-6 pb-5 backdrop-blur-2xl md:static md:flex md:flex-row md:items-center md:gap-9 md:border-0 md:bg-transparent md:p-0"} aria-label="Main navigation">
               <a onClick={() => setMenuOpen(false)} href="#experience" className="border-b border-white/10 py-4 text-xs text-white/70 transition hover:text-white md:border-0 md:py-0">The experience</a>
