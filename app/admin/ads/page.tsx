@@ -59,7 +59,7 @@ export default function AdminAdsApprovalPage() {
       <header className="mb-8 flex flex-wrap items-center justify-between gap-4 border-b border-white/10 pb-6">
         <div>
           <Link href="/admin" className="mb-4 inline-flex items-center gap-2 text-sm text-slate-400 hover:text-white"><ArrowLeft size={16}/> Back to Admin</Link>
-          <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[.2em] text-cyan-300"><ShieldCheck size={15}/> Arkout · Advertisement review</p>
+          <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[.2em] text-cyan-300"><ShieldCheck size={15}/> Campus Print · Advertisement review</p>
           <h1 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">Approve kiosk ads</h1>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">Every submission stays hidden from kiosk screens until an admin approves it. Rejected media is deleted.</p>
         </div>
