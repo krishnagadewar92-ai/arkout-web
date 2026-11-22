@@ -49,8 +49,8 @@ export default function PrintRouterPage() {
       <main className="flex min-h-screen items-center justify-center bg-slate-950 px-5 py-12 text-white">
         <section className="w-full max-w-lg rounded-3xl border border-white/10 bg-white/[0.04] p-7 shadow-2xl sm:p-10">
           <h1 className="text-2xl font-bold">Invalid kiosk PIN</h1>
-          <p className="mt-3 leading-7 text-slate-300">Scan the QR code shown on the kiosk, or return to Arkout and enter a valid terminal PIN.</p>
-          <Link href="/" className="mt-7 inline-flex items-center gap-2 rounded-xl bg-white px-5 py-3 font-semibold text-slate-950"><ArrowLeft size={17} /> Back to Arkout</Link>
+          <p className="mt-3 leading-7 text-slate-300">Scan the QR code shown on the kiosk, or return to the print home and enter a valid terminal PIN.</p>
+          <Link href="/" className="mt-7 inline-flex items-center gap-2 rounded-xl bg-white px-5 py-3 font-semibold text-slate-950"><ArrowLeft size={17} /> Back to print home</Link>
         </section>
       </main>
     );
@@ -60,7 +60,7 @@ export default function PrintRouterPage() {
     <main className="flex min-h-screen items-center justify-center bg-slate-950 px-5 py-12 text-white">
       <section className="w-full max-w-lg rounded-3xl border border-white/10 bg-white/[0.04] p-7 shadow-2xl sm:p-10">
         <div className="mb-7 flex h-14 w-14 items-center justify-center rounded-2xl border border-cyan-300/20 bg-cyan-300/10 text-cyan-200"><Printer size={28} aria-hidden="true" /></div>
-        <p className="text-xs font-bold uppercase tracking-[0.22em] text-cyan-300">Arkout PrintPod</p>
+        <p className="text-xs font-bold uppercase tracking-[0.22em] text-cyan-300">Campus Print</p>
         <h1 className="mt-3 text-3xl font-bold tracking-tight">Start printing</h1>
         <p className="mt-3 leading-7 text-slate-300">Enter the PIN shown on your kiosk. If you're at Terminal 02, scanning its QR code is recommended.</p>
         <form onSubmit={continueWithPin} className="mt-7 space-y-4">
