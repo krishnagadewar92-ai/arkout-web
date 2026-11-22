@@ -207,7 +207,7 @@ export default function Terminal01LegacyPrintPage() {
         key: order.key_id,
         amount: order.amount,
         currency: order.currency,
-        name: "Arkout Print Hub",
+        name: "Campus Print",
         description: `Secure Print - ${totalPages} Pages`,
         order_id: order.id,
         handler: async (paymentResponse: any) => {
@@ -234,7 +234,7 @@ export default function Terminal01LegacyPrintPage() {
             setIsPaying(false);
           }
         },
-        prefill: { name: "Arkout User" },
+        prefill: { name: "Print User" },
         theme: { color: "#000000" },
         modal: {
           ondismiss: () => {
@@ -314,7 +314,7 @@ export default function Terminal01LegacyPrintPage() {
       <div className={`absolute inset-0 transition-all duration-700 ease-in-out z-0 flex items-center justify-center overflow-hidden pointer-events-none ${step !== 'verify' ? 'blur-3xl scale-105 opacity-40' : 'blur-none opacity-100'}`}>
         <div className="absolute inset-0 bg-gradient-to-tr from-cyan-900/20 via-black to-purple-900/20 z-10"></div>
         <div className="relative z-0 flex flex-col items-center text-center p-12 max-w-4xl">
-          <span className="px-4 py-1.5 rounded-full bg-white/10 text-cyan-400 text-xs font-medium tracking-widest uppercase mb-4 backdrop-blur-md">Sponsored • Arkout Ecosystem</span>
+          <span className="px-4 py-1.5 rounded-full bg-white/10 text-cyan-400 text-xs font-medium tracking-widest uppercase mb-4 backdrop-blur-md">CAMPUS PRINTING</span>
           <h1 className="text-5xl md:text-7xl font-bold tracking-tight text-transparent bg-clip-text bg-gradient-to-b from-white to-zinc-500 mb-6">
             The Future of Autonomous Printing.
           </h1>
@@ -328,7 +328,7 @@ export default function Terminal01LegacyPrintPage() {
 
         <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="text-center mb-6">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/[0.08] backdrop-blur-xl border border-white/10 text-xs font-medium text-zinc-300 mb-3 shadow-sm">
-            <Sparkles size={12} className="text-cyan-400" /> Arkout Secure Kiosk Node
+            <Sparkles size={12} className="text-cyan-400" /> Secure Kiosk Node
           </div>
         </motion.div>
 
@@ -564,7 +564,7 @@ export default function Terminal01LegacyPrintPage() {
                         <Star size={20} className="text-amber-400 fill-amber-400" />
                       </div>
                       <h4 className="text-sm font-medium text-white mb-1">Thank you!</h4>
-                      <p className="text-xs text-zinc-400">Your feedback helps us refine the Arkout experience.</p>
+                      <p className="text-xs text-zinc-400">Your feedback helps us improve the printing experience.</p>
                     </motion.div>
                   )}
 
