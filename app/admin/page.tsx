@@ -506,8 +506,8 @@ export default function ArkoutAdminPage() {
                     <div><span>This month</span><strong>{formatRupees(monthRevenue)}</strong></div>
                   </div>
                   <div className="admin-report-actions">
-                    <button className="admin-secondary-button" disabled={busy} onClick={() => void downloadReport("api/revenue/export.csv","arkout-revenue.csv")}><Download size={15} /> Export revenue CSV</button>
-                    <button className="admin-secondary-button" disabled={busy} onClick={() => void downloadReport("api/revenue/report.pdf","arkout-revenue-report.pdf")}><Download size={15} /> Download PDF report</button>
+                    <button className="admin-secondary-button" disabled={busy} onClick={() => void downloadReport("api/revenue/export.csv","campus-print-revenue.csv")}><Download size={15} /> Export revenue CSV</button>
+                    <button className="admin-secondary-button" disabled={busy} onClick={() => void downloadReport("api/revenue/report.pdf","campus-print-revenue-report.pdf")}><Download size={15} /> Download PDF report</button>
                   </div>
                   <p className="admin-muted">Revenue summaries and reports use the existing backend routes.</p>
                 </section>
