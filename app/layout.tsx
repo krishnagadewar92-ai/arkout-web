@@ -12,7 +12,7 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-export const metadata = {
+export const metadata = {\n  title: 'Campus Print — Self-Service Printing',\n  description: 'A guided self-service campus printing experience. Upload documents, choose print settings and collect your pages.',\n  icons: { icon: "/print-mark.svg" },
   title: 'Arkout - Modernize Campus Printing',
   description: 'Fully autonomous, secure, and self-sustaining print kiosk for modern universities.',
 }
