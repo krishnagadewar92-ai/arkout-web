@@ -764,7 +764,7 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
         key: publicRazorpayKey,
         amount: activeOrder.amount,
         currency: activeOrder.currency,
-        name: "Arkout Print Hub",
+        name: "Campus Print",
         description: "Terminal 02 secure printing",
         order_id: activeOrder.id,
         theme: { color: "#0891b2" },
@@ -909,7 +909,7 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
     if (!activeOrder || !sessionToken || isCancellingOrder || submitted) return;
     if (requireConfirmation) {
       const confirmed = window.confirm(
-        "Cancel this print order and end the kiosk session? Arkout will first reconcile Razorpay. If a payment is captured, pending, or uncertain, cancellation will be refused and the order will remain available for recovery.",
+        "Cancel this print order and end the kiosk session? The payment service will first reconcile the order. If a payment is captured, pending, or uncertain, cancellation will be refused and the order will remain available for recovery.",
       );
       if (!confirmed) return;
     }
@@ -976,7 +976,7 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
           <div className="mb-7 flex h-14 w-14 items-center justify-center rounded-2xl border border-amber-300/20 bg-amber-300/10 text-amber-200">
             {maintenanceMessage ? <LockKeyhole size={28} aria-hidden="true" /> : <AlertTriangle size={28} aria-hidden="true" />}
           </div>
-          <p className="text-xs font-bold uppercase tracking-[0.22em] text-cyan-300">Arkout Terminal 02</p>
+          <p className="text-xs font-bold uppercase tracking-[0.22em] text-cyan-300">Print Terminal 02</p>
           <h1 className="mt-3 text-3xl font-bold tracking-tight">{maintenanceMessage ? "Kiosk is under maintenance" : "Terminal 02 is temporarily unavailable"}</h1>
           <p className="mt-4 leading-7 text-slate-300">{maintenanceMessage || startupError}</p>
           {activeOrder && sessionToken && (
@@ -989,7 +989,7 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
             </div>
           )}
           <div className="mt-6 flex items-start gap-3 text-sm leading-6 text-slate-400"><ShieldCheck size={19} className="mt-0.5 shrink-0 text-cyan-300" aria-hidden="true" /> No new checkout or print submission can be started while maintenance is enabled.</div>
-          <Link href="/" onClick={handleBackToArkout} className="mt-8 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-white px-5 py-3 font-semibold text-slate-950 transition hover:bg-slate-200"><ArrowLeft size={17} aria-hidden="true" /> Back to Arkout</Link>
+          <Link href="/" onClick={handleBackToArkout} className="mt-8 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-white px-5 py-3 font-semibold text-slate-950 transition hover:bg-slate-200"><ArrowLeft size={17} aria-hidden="true" /> Back to print home</Link>
         </section>
       </main>
     );
@@ -1003,7 +1003,7 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
           <h1 className="mt-5 text-3xl font-bold">Print submission confirmed</h1>
           <p className="mt-4 leading-7 text-slate-300">{message || "The server confirmed the verified payment and accepted the print submission."}</p>
           <p className="mt-3 text-sm text-slate-400">Do not submit or pay for this order again.</p>
-          <Link href="/" onClick={handleBackToArkout} className="mt-8 inline-flex items-center justify-center gap-2 rounded-xl bg-white px-5 py-3 font-semibold text-slate-950"><ArrowLeft size={17} aria-hidden="true" /> Back to Arkout</Link>
+          <Link href="/" onClick={handleBackToArkout} className="mt-8 inline-flex items-center justify-center gap-2 rounded-xl bg-white px-5 py-3 font-semibold text-slate-950"><ArrowLeft size={17} aria-hidden="true" /> Back to print home</Link>
         </section>
       </main>
     );
@@ -1015,7 +1015,7 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
         <header className="mb-8 flex items-center gap-4">
           <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-cyan-300/20 bg-cyan-300/10 text-cyan-200"><Printer size={28} aria-hidden="true" /></div>
           <div>
-            <p className="text-xs font-bold uppercase tracking-[0.22em] text-cyan-300">Arkout PrintPod · Terminal 02</p>
+            <p className="text-xs font-bold uppercase tracking-[0.22em] text-cyan-300">Campus Print · Terminal 02</p>
             <h1 className="mt-1 text-3xl font-bold tracking-tight">Secure printing checkout</h1>
             <p className="mt-1 text-sm text-slate-400">PIN session: {pin}</p>
           </div>
@@ -1143,7 +1143,7 @@ export default function Terminal02SecurePrintPage({ pin }: { pin: string }) {
           <div className="flex items-start gap-3 border-t border-white/10 pt-5 text-xs leading-5 text-slate-400"><ShieldCheck size={17} className="mt-0.5 shrink-0 text-cyan-300" aria-hidden="true" /> Payment verification and print submission are performed by the Terminal 02 backend. This page never calls the direct-print endpoint.</div>
         </section>
 
-        <Link href="/" onClick={handleBackToArkout} className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-slate-400 hover:text-white"><ArrowLeft size={16} aria-hidden="true" /> Back to Arkout</Link>
+        <Link href="/" onClick={handleBackToArkout} className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-slate-400 hover:text-white"><ArrowLeft size={16} aria-hidden="true" /> Back to print home</Link>
       </div>
     </main>
   );
